@@ -1,6 +1,6 @@
-numpy
-pandas
-matplotlib
-seaborn
-scikit-learn
-torch
+numpy==1.26.4
+pandas==2.1.4
+matplotlib==3.8.0
+seaborn==0.12.2
+scikit-learn==1.7.2
+torch==2.2.2
