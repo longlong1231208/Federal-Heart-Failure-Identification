@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE settings
+.idea/
+.vscode/
+
+# Local data and generated experiment artifacts
+*.pkl
+*.pt
+*.pth
+*.onnx
+*.csv
+*.pdf
+*.png
+*.jpg
+*.jpeg
+out/
+results/
+figures/
+ch4_compare/
+
+# OS files
+.DS_Store
+Thumbs.db
