@@ -31,6 +31,12 @@ pip install -r requirements.txt
 
 Python 3.10 or newer is recommended. If CUDA is available, PyTorch will use GPU automatically in the main experiment code.
 
+## Documentation
+
+- `docs/method_overview.md`: concise overview of the DA-PFL pipeline and M1/M2/M3 modules.
+- `data/README.md`: dataset placement and data-file notes.
+- `LICENSE`: license terms for using this code.
+
 ## Data
 
 The local dataset file `fl_dataset_final.pkl` is not included in this repository because it is a generated data artifact and may be large or private.
