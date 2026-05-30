@@ -29,6 +29,9 @@ out/
 results/
 figures/
 ch4_compare/
+scripts/
+utils/
+绘图.py
 
 # OS files
 .DS_Store

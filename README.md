@@ -1,14 +1,11 @@
 # Federal Heart Failure Identification
 
-Master's thesis source code for DA-PFL based heart failure identification experiments.
+Master's thesis core source code for DA-PFL based heart failure identification experiments.
 
 ## Project Structure
 
-- `models/`: model definitions, DA-PFL pipeline, and experiment runners.
-- `datasets/`: dataset loading and federated data utilities.
-- `scripts/`: scripts for running experiments and generating paper figures.
-- `utils/`: metrics, random seed helpers, and statistical analysis utilities.
-- Root plotting script: paper figure plotting code.
+- `models/`: model definitions and DA-PFL pipeline.
+- `datasets/`: dataset loading and federated data utilities required by the model pipeline.
 
 ## Environment
 
@@ -30,14 +27,12 @@ Place the dataset file in the project root before running the experiment scripts
 fl_dataset_final.pkl
 ```
 
-## Running Experiments
+## Running Code
 
-Example commands:
+Example command:
 
 ```bash
 python models/main.py
-python scripts/run_final_dapfl_updated_m2.py
-python scripts/run_m2_mapping_preexperiment.py
 ```
 
-Generated outputs such as `out/`, `results/`, and `figures/` are intentionally ignored by Git. They can be regenerated from the code and local dataset.
+Generated outputs such as `out/`, `results/`, and `figures/` are intentionally ignored by Git. Auxiliary local scripts and plotting files are not included in this repository.
