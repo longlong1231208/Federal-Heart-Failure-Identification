@@ -45,10 +45,10 @@ The component analysis supports the intended role of each module: M1 mainly impr
 
 ## Reproduction Notes
 
-The repository does not include the local dataset file or generated outputs. To reproduce the reported results, place `fl_dataset_final.pkl` in the project root and run:
+To reproduce the reported results, place `fl_dataset_final.pkl` in the project root and run:
 
 ```bash
 python models/main.py
 ```
 
-Small numerical differences can occur across hardware, PyTorch/CUDA versions, and deterministic settings. The table above is the thesis reference result.
+Small numerical differences can occur across hardware, PyTorch/CUDA versions, and deterministic settings.

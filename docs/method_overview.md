@@ -1,6 +1,6 @@
 # Method Overview
 
-This repository contains the core implementation of a DA-PFL pipeline for federated heart failure identification.
+This document summarizes the DA-PFL pipeline for federated heart failure identification.
 
 ## Backbone
 
@@ -43,7 +43,3 @@ models/ch4_m3.py
 ## Integrated Pipeline
 
 The integrated workflow is implemented in `models/dapfl_pipeline.py` and invoked from `models/main.py`. It connects dataset loading, global training, prior calibration, adaptive personalization control, sensitivity-based parameter selection, local personalization, and evaluation.
-
-## Repository Scope
-
-This repository is a core-code release. It intentionally excludes local datasets, generated outputs, plotting scripts, and auxiliary analysis files.

@@ -15,7 +15,7 @@ env/
 .idea/
 .vscode/
 
-# Local data and generated experiment artifacts
+# Data files and runtime outputs
 *.pkl
 *.pt
 *.pth

@@ -1,8 +1,8 @@
 # Federal Heart Failure Identification
 
-Master's thesis core source code for DA-PFL based heart failure identification experiments.
+Core source code for DA-PFL based heart failure identification experiments.
 
-This repository keeps only the implementation files required to describe and run the core model pipeline. Local datasets, generated experiment outputs, plotting scripts, and auxiliary analysis files are not included.
+The repository contains the model implementation, dataset loader, method documentation, and reference experimental results.
 
 ## Module Overview
 
@@ -36,11 +36,10 @@ Python 3.10 or newer is recommended. If CUDA is available, PyTorch will use GPU 
 - `docs/method_overview.md`: concise overview of the DA-PFL pipeline and M1/M2/M3 modules.
 - `docs/expected_results.md`: thesis reference metrics and reproduction notes.
 - `data/README.md`: dataset placement and data-file notes.
-- `LICENSE`: license terms for using this code.
 
 ## Data
 
-The local dataset file `fl_dataset_final.pkl` is not included in this repository because it is a generated data artifact and may be large or private.
+The dataset file `fl_dataset_final.pkl` is not included in this repository.
 
 Place the dataset file in the project root before running the main experiment:
 
@@ -56,14 +55,4 @@ Example command:
 python models/main.py
 ```
 
-Generated outputs such as `out/`, `results/`, and `figures/` are intentionally ignored by Git.
-
-## Repository Scope
-
-This repository is intended as a clean core-code release. The following local files are intentionally excluded:
-
-- raw/generated dataset files
-- experiment output folders
-- paper figures and result tables
-- plotting and auxiliary analysis scripts
-- IDE settings and Python cache files
+The main reference metrics are listed in `docs/expected_results.md`.
