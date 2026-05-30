@@ -80,7 +80,7 @@ def _split_train_val_from_train(
     remain = n_val
     for k, c in zip(classes, counts):
         take = int(round(n_val * (c / n)))
-        take = min(take, c - 1)   # keep at least 1 sample per class in train
+        take = min(take, c - 1)  # keep at least 1 sample per class in train
         take = max(0, take)
         remain -= take
 
@@ -96,7 +96,9 @@ def _split_train_val_from_train(
         val_idx = np.concatenate([val_idx, extra])
     elif remain < 0:
         drop_n = -remain
-        keep = rng.choice(np.arange(len(val_idx)), size=len(val_idx) - drop_n, replace=False)
+        keep = rng.choice(
+            np.arange(len(val_idx)), size=len(val_idx) - drop_n, replace=False
+        )
         val_idx = val_idx[keep]
 
     val_idx = np.unique(val_idx)
@@ -108,6 +110,7 @@ class SequenceDataset(Dataset):
     """
     Holds (X,y) where X is [N,T,D] float32 and y is int64.
     """
+
     def __init__(self, X: ArrayLike, y: ArrayLike):
         Xn = _ensure_3d(X).astype(np.float32, copy=False)
         yn = _ensure_1d(y).astype(np.int64, copy=False)
@@ -145,6 +148,7 @@ class FederatedPKLDataset:
 
     It NEVER re-splits train/test. Optionally creates val from train only.
     """
+
     def __init__(
         self,
         pkl_path: Union[str, Path],
@@ -194,14 +198,22 @@ class FederatedPKLDataset:
                 X = _ensure_3d(self._raw[c][split]["X"])
                 y = _ensure_1d(self._raw[c][split]["y"])
                 if X.shape[0] != y.shape[0]:
-                    raise ValueError(f"Client {c} {split}: X/y mismatch {X.shape[0]} vs {y.shape[0]}")
+                    raise ValueError(
+                        f"Client {c} {split}: X/y mismatch {X.shape[0]} vs {y.shape[0]}"
+                    )
                 if X.shape[1] != self._T or X.shape[2] != self._D:
-                    raise ValueError(f"Client {c} {split}: shape mismatch, got {X.shape}, expected [N,{self._T},{self._D}]")
+                    raise ValueError(
+                        f"Client {c} {split}: shape mismatch, got {X.shape}, expected [N,{self._T},{self._D}]"
+                    )
                 if (not self.allow_nan) and np.isnan(X).any():
-                    raise ValueError(f"Client {c} {split}: NaN exists in X (preprocess should have imputed).")
+                    raise ValueError(
+                        f"Client {c} {split}: NaN exists in X (preprocess should have imputed)."
+                    )
                 uniq = np.unique(y)
                 if not set(uniq.tolist()).issubset({0, 1}):
-                    raise ValueError(f"Client {c} {split}: y must be binary 0/1, unique={uniq}")
+                    raise ValueError(
+                        f"Client {c} {split}: y must be binary 0/1, unique={uniq}"
+                    )
 
     @property
     def seq_len(self) -> int:
@@ -261,7 +273,9 @@ class FederatedPKLDataset:
             train=train_ds,
             val=val_ds,
             test=SequenceDataset(X_te, y_te),
-            meta=self._raw[client].get("meta", {}) if isinstance(self._raw[client].get("meta", {}), dict) else {},
+            meta=self._raw[client].get("meta", {})
+            if isinstance(self._raw[client].get("meta", {}), dict)
+            else {},
         )
         self._cache[client] = split
         return split
@@ -277,18 +291,30 @@ class FederatedPKLDataset:
         sp = self.get_split(client)
 
         train_loader = DataLoader(
-            sp.train, batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=pin_memory, drop_last=drop_last
+            sp.train,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=drop_last,
         )
         val_loader = None
         if sp.val is not None and len(sp.val) > 0:
             val_loader = DataLoader(
-                sp.val, batch_size=batch_size, shuffle=False,
-                num_workers=num_workers, pin_memory=pin_memory, drop_last=False
+                sp.val,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                drop_last=False,
             )
         test_loader = DataLoader(
-            sp.test, batch_size=batch_size, shuffle=False,
-            num_workers=num_workers, pin_memory=pin_memory, drop_last=False
+            sp.test,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=False,
         )
         return train_loader, val_loader, test_loader
 
@@ -303,6 +329,8 @@ if __name__ == "__main__":
         c0 = ds.get_clients()[0]
         tr, va, te = ds.get_dataloaders(c0, batch_size=32)
         xb, yb = next(iter(tr))
-        print(f"[OK] batch X={xb.shape} y={yb.shape} client={c0} val={'yes' if va else 'no'}")
+        print(
+            f"[OK] batch X={xb.shape} y={yb.shape} client={c0} val={'yes' if va else 'no'}"
+        )
     else:
         print(f"[WARN] Not found: {default_pkl}")

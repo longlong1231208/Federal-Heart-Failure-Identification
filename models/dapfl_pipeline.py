@@ -156,10 +156,10 @@ def _loader_to_numpy_y(loader) -> np.ndarray:
 
 
 def build_ch4_loaders(
-        pkl_path: str,
-        cfg: Ch4Config,
-        seed: int,
-        val_frac: float = 0.1,
+    pkl_path: str,
+    cfg: Ch4Config,
+    seed: int,
+    val_frac: float = 0.1,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any], List[str], List[int], int]:
     ds = FederatedPKLDataset(pkl_path, val_frac=val_frac, seed=seed)
     client_names = ds.get_clients()
@@ -169,7 +169,9 @@ def build_ch4_loaders(
     all_train_used_y = []
 
     for cname in client_names:
-        tr_loader, va_loader, te_loader = ds.get_dataloaders(cname, batch_size=cfg.batch_size)
+        tr_loader, va_loader, te_loader = ds.get_dataloaders(
+            cname, batch_size=cfg.batch_size
+        )
 
         y_train_used_raw = _loader_to_numpy_y(tr_loader)
         if y_train_used_raw.size > 0:
@@ -183,7 +185,11 @@ def build_ch4_loaders(
         }
         client_sizes.append(len(tr_loader.dataset))
 
-    y_global_used = torch.cat(all_train_used_y).detach().cpu().numpy() if all_train_used_y else np.asarray([])
+    y_global_used = (
+        torch.cat(all_train_used_y).detach().cpu().numpy()
+        if all_train_used_y
+        else np.asarray([])
+    )
     central = {"y_train_used_raw": y_global_used}
     return client_loaders, central, client_names, client_sizes, ds.input_dim
 
@@ -228,14 +234,18 @@ def calculate_brier(y_true: np.ndarray, y_prob: np.ndarray) -> float:
 
 
 @torch.no_grad()
-def collect_logits_labels(model: nn.Module, loader, device) -> Tuple[np.ndarray, np.ndarray]:
+def collect_logits_labels(
+    model: nn.Module, loader, device
+) -> Tuple[np.ndarray, np.ndarray]:
     model.eval()
     logits_all, y_all = [], []
     if loader is None:
         return np.asarray([]), np.asarray([])
     for x, y in loader:
         x = x.to(device, non_blocking=True)
-        if hasattr(model, "forward_logits") and callable(getattr(model, "forward_logits")):
+        if hasattr(model, "forward_logits") and callable(
+            getattr(model, "forward_logits")
+        ):
             logits_t = model.forward_logits(x)
         else:
             logits_t = model(x)
@@ -248,7 +258,9 @@ def collect_logits_labels(model: nn.Module, loader, device) -> Tuple[np.ndarray,
     return np.concatenate(logits_all), np.concatenate(y_all)
 
 
-def _search_best_threshold_by_f1(y_true: np.ndarray, y_prob: np.ndarray, grid: Tuple[float, float, int]) -> float:
+def _search_best_threshold_by_f1(
+    y_true: np.ndarray, y_prob: np.ndarray, grid: Tuple[float, float, int]
+) -> float:
     lo, hi, n = grid
     best_f1 = -1.0
     best_t = 0.5
@@ -262,18 +274,22 @@ def _search_best_threshold_by_f1(y_true: np.ndarray, y_prob: np.ndarray, grid: T
 
 
 def evaluate_from_logits(
-        y_true: np.ndarray,
-        logits: np.ndarray,
-        threshold: Optional[float],
-        grid: Tuple[float, float, int],
+    y_true: np.ndarray,
+    logits: np.ndarray,
+    threshold: Optional[float],
+    grid: Tuple[float, float, int],
 ) -> Dict[str, Any]:
     y_true = np.asarray(y_true).astype(int).reshape(-1)
     logits = np.asarray(logits, dtype=float).reshape(-1)
 
     if y_true.size == 0 or logits.size == 0:
         return {
-            "auc": 0.5, "f1": 0.0, "recall": 0.0, "precision": 0.0,
-            "brier": 0.0, "ece": 0.0,  # <--- 补充
+            "auc": 0.5,
+            "f1": 0.0,
+            "recall": 0.0,
+            "precision": 0.0,
+            "brier": 0.0,
+            "ece": 0.0,  # <--- 补充
             "best_threshold": 0.5,
             "y_true": np.asarray([], dtype=int),
             "y_prob": np.asarray([], dtype=float),
@@ -300,7 +316,11 @@ def evaluate_from_logits(
 
     auc = float(roc_auc_score(y_true, prob))
 
-    t = _search_best_threshold_by_f1(y_true, prob, grid) if threshold is None else float(threshold)
+    t = (
+        _search_best_threshold_by_f1(y_true, prob, grid)
+        if threshold is None
+        else float(threshold)
+    )
     pred = (prob > t).astype(int)
 
     return {
@@ -316,19 +336,27 @@ def evaluate_from_logits(
     }
 
 
-def _choose_threshold_from_val(model: nn.Module, val_loader, device, cfg: Ch4Config) -> float:
+def _choose_threshold_from_val(
+    model: nn.Module, val_loader, device, cfg: Ch4Config
+) -> float:
     if val_loader is None:
         return float(cfg.fallback_threshold_when_no_val)
     val_logits, val_y = collect_logits_labels(model, val_loader, device)
     if val_y.size == 0 or val_logits.size == 0:
         return float(cfg.fallback_threshold_when_no_val)
-    val_res = evaluate_from_logits(val_y, val_logits, threshold=None, grid=cfg.thresh_grid)
+    val_res = evaluate_from_logits(
+        val_y, val_logits, threshold=None, grid=cfg.thresh_grid
+    )
     return float(val_res["best_threshold"])
 
 
-def _eval_on_test_with_threshold(model: nn.Module, test_loader, device, cfg: Ch4Config, thr: float) -> Dict[str, Any]:
+def _eval_on_test_with_threshold(
+    model: nn.Module, test_loader, device, cfg: Ch4Config, thr: float
+) -> Dict[str, Any]:
     test_logits, test_y = collect_logits_labels(model, test_loader, device)
-    return evaluate_from_logits(test_y, test_logits, threshold=float(thr), grid=cfg.thresh_grid)
+    return evaluate_from_logits(
+        test_y, test_logits, threshold=float(thr), grid=cfg.thresh_grid
+    )
 
 
 def calculate_gini(scores: List[float]) -> float:
@@ -337,13 +365,23 @@ def calculate_gini(scores: List[float]) -> float:
     if n == 0:
         return 0.0
     idx = np.arange(1, n + 1)
-    denom = (s.sum() + 1e-12)
+    denom = s.sum() + 1e-12
     return float(((2 * idx - n - 1) * s).sum() / (n * denom))
 
 
-def _aggregate_client_metrics(client_metrics: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
-    ys = [m["y_true"] for m in client_metrics.values() if m.get("y_true", np.asarray([])).size > 0]
-    ps = [m["y_prob"] for m in client_metrics.values() if m.get("y_prob", np.asarray([])).size > 0]
+def _aggregate_client_metrics(
+    client_metrics: Dict[str, Dict[str, Any]]
+) -> Dict[str, float]:
+    ys = [
+        m["y_true"]
+        for m in client_metrics.values()
+        if m.get("y_true", np.asarray([])).size > 0
+    ]
+    ps = [
+        m["y_prob"]
+        for m in client_metrics.values()
+        if m.get("y_prob", np.asarray([])).size > 0
+    ]
 
     if ys and ps:
         all_y = np.concatenate(ys)
@@ -381,10 +419,18 @@ def _aggregate_client_metrics(client_metrics: Dict[str, Dict[str, Any]]) -> Dict
         "global_ece": float(global_ece),  # <--- 补充
         "macro_auc": float(np.mean(client_aucs)) if client_aucs else float("nan"),
         "macro_f1": float(np.mean(client_f1s)) if client_f1s else float("nan"),
-        "macro_recall": float(np.mean(client_recalls)) if client_recalls else float("nan"),
-        "macro_precision": float(np.mean(client_precs)) if client_precs else float("nan"),
-        "macro_brier": float(np.mean(client_briers)) if client_briers else float("nan"),  # <--- 补充
-        "macro_ece": float(np.mean(client_eces)) if client_eces else float("nan"),  # <--- 补充
+        "macro_recall": float(np.mean(client_recalls))
+        if client_recalls
+        else float("nan"),
+        "macro_precision": float(np.mean(client_precs))
+        if client_precs
+        else float("nan"),
+        "macro_brier": float(np.mean(client_briers))
+        if client_briers
+        else float("nan"),  # <--- 补充
+        "macro_ece": float(np.mean(client_eces))
+        if client_eces
+        else float("nan"),  # <--- 补充
         "gini": float(calculate_gini(valid_aucs)) if valid_aucs else 0.0,
     }
 
@@ -393,9 +439,9 @@ def _aggregate_client_metrics(client_metrics: Dict[str, Dict[str, Any]]) -> Dict
 # Priors
 # ============================================================
 def get_priors(
-        client_loaders,
-        client_names: List[str],
-        central: Dict[str, Any],
+    client_loaders,
+    client_names: List[str],
+    central: Dict[str, Any],
 ) -> Tuple[float, Dict[str, Dict[str, float]]]:
     y_g = np.asarray(central.get("y_train_used_raw", np.asarray([]))).reshape(-1)
     n_g = int(y_g.size)
@@ -404,7 +450,9 @@ def get_priors(
 
     per = {}
     for n in client_names:
-        y_i = np.asarray(client_loaders[n].get("y_train_used_raw", np.asarray([]))).reshape(-1)
+        y_i = np.asarray(
+            client_loaders[n].get("y_train_used_raw", np.asarray([]))
+        ).reshape(-1)
         n_i = int(y_i.size)
         n_pos_i = int(np.sum(y_i)) if n_i > 0 else 0
         p_i_raw = float(np.mean(y_i)) if n_i > 0 else p_g_raw
@@ -423,9 +471,9 @@ def get_priors(
 
 
 def compute_qbar_aligned_global_prior(
-        client_names: List[str],
-        priors_per_client: Dict[str, Dict[str, float]],
-        qbar: Optional[Dict[str, float]],
+    client_names: List[str],
+    priors_per_client: Dict[str, Dict[str, float]],
+    qbar: Optional[Dict[str, float]],
 ) -> float:
     """
     Paper-aligned Stage II-A baseline:
@@ -439,7 +487,11 @@ def compute_qbar_aligned_global_prior(
     wsum = 0.0
     for name in client_names:
         wk = float(qbar.get(name, 0.0))
-        pk = float(priors_per_client.get(name, {}).get("p_i_raw", priors_per_client["_global"]["p_g_raw"]))
+        pk = float(
+            priors_per_client.get(name, {}).get(
+                "p_i_raw", priors_per_client["_global"]["p_g_raw"]
+            )
+        )
         total += wk * pk
         wsum += wk
 
@@ -456,12 +508,12 @@ def _trainable_params(model: nn.Module) -> List[torch.Tensor]:
 
 
 def train_epoch(
-        model: nn.Module,
-        loader,
-        optimizer,
-        criterion,
-        device,
-        clip_grad: Optional[float] = None,
+    model: nn.Module,
+    loader,
+    optimizer,
+    criterion,
+    device,
+    clip_grad: Optional[float] = None,
 ):
     model.train()
     params_to_clip = _trainable_params(model)
@@ -506,13 +558,13 @@ def _split_bce_loss(model: nn.Module, loader, device) -> float:
 
 
 def _evaluate_clients_on_split(
-        model: nn.Module,
-        client_loaders,
-        client_names: List[str],
-        cfg: Ch4Config,
-        device,
-        *,
-        split: str = "val",
+    model: nn.Module,
+    client_loaders,
+    client_names: List[str],
+    cfg: Ch4Config,
+    device,
+    *,
+    split: str = "val",
 ) -> Dict[str, Any]:
     client_metrics: Dict[str, Dict[str, Any]] = {}
     losses: List[float] = []
@@ -535,25 +587,29 @@ def _evaluate_clients_on_split(
 
     agg = _aggregate_client_metrics(client_metrics)
     if losses:
-        agg[f"{split}_loss"] = float(np.average(np.asarray(losses), weights=np.asarray(weights)))
+        agg[f"{split}_loss"] = float(
+            np.average(np.asarray(losses), weights=np.asarray(weights))
+        )
     else:
         agg[f"{split}_loss"] = float("nan")
     return agg
 
 
 def run_fedavg_backbone(
-        client_loaders,
-        client_names: List[str],
-        client_sizes: List[int],
-        input_dim: int,
-        cfg: Ch4Config,
-        device,
-        *,
-        return_history: bool = False,
-        history_split: str = "val",
-        history_every: int = 1,
+    client_loaders,
+    client_names: List[str],
+    client_sizes: List[int],
+    input_dim: int,
+    cfg: Ch4Config,
+    device,
+    *,
+    return_history: bool = False,
+    history_split: str = "val",
+    history_every: int = 1,
 ) -> Any:
-    global_model = GRUModel(input_dim, cfg.hidden_dim, cfg.num_layers, cfg.dropout).to(device)
+    global_model = GRUModel(input_dim, cfg.hidden_dim, cfg.num_layers, cfg.dropout).to(
+        device
+    )
     global_w = global_model.state_dict()
     history: List[Dict[str, Any]] = []
     history_every = int(max(1, history_every))
@@ -565,7 +621,9 @@ def run_fedavg_backbone(
         local_loss_weights: List[float] = []
 
         for i, name in enumerate(client_names):
-            local = GRUModel(input_dim, cfg.hidden_dim, cfg.num_layers, cfg.dropout).to(device)
+            local = GRUModel(input_dim, cfg.hidden_dim, cfg.num_layers, cfg.dropout).to(
+                device
+            )
             local.load_state_dict(global_w, strict=True)
 
             opt = optim.Adam(local.parameters(), lr=lr, weight_decay=cfg.weight_decay)
@@ -601,7 +659,9 @@ def run_fedavg_backbone(
         global_w = new_w
         global_model.load_state_dict(global_w, strict=True)
 
-        if return_history and (((r + 1) % history_every == 0) or (r + 1 == int(cfg.fed_rounds))):
+        if return_history and (
+            ((r + 1) % history_every == 0) or (r + 1 == int(cfg.fed_rounds))
+        ):
             diag = _evaluate_clients_on_split(
                 global_model,
                 client_loaders,
@@ -611,7 +671,11 @@ def run_fedavg_backbone(
                 split=str(history_split),
             )
             if local_losses:
-                train_loss = float(np.average(np.asarray(local_losses), weights=np.asarray(local_loss_weights)))
+                train_loss = float(
+                    np.average(
+                        np.asarray(local_losses), weights=np.asarray(local_loss_weights)
+                    )
+                )
             else:
                 train_loss = float("nan")
             history.append(
@@ -641,7 +705,6 @@ def _build_apc_params_from_cfg(cfg: Ch4Config) -> APCParams:
         direct_gamma=float(getattr(cfg, "apc_direct_gamma", 1.96)),
         gamma_s_scale=float(cfg.apc_gamma_s_scale),
         G_groups=int(cfg.apc_G_groups),
-
         K_pers_min=int(cfg.K_pers_min),
         K_pers_max=int(cfg.K_pers_max),
         E_pers_min=int(cfg.E_pers_min),
@@ -654,13 +717,16 @@ def _build_m3_cfg_from_cfg(cfg: Ch4Config) -> M3Config:
         enabled=True,
         score_mode=str(cfg.m3_score_mode),
         grad_score_batches=int(cfg.grad_score_batches),
-        grad_score_batches_large=int(
-            cfg.grad_score_batches_large) if cfg.grad_score_batches_large is not None else None,
+        grad_score_batches_large=int(cfg.grad_score_batches_large)
+        if cfg.grad_score_batches_large is not None
+        else None,
         eps=float(cfg.m3_eps),
         force_keep_head=True,
         prefer_forward_logits=True,
         enable_groupwise_clip_helper=True,
-        group_clip_norm=float(cfg.group_clip_norm) if cfg.group_clip_norm is not None else None,
+        group_clip_norm=float(cfg.group_clip_norm)
+        if cfg.group_clip_norm is not None
+        else None,
     )
 
 
@@ -668,15 +734,15 @@ def _build_m3_cfg_from_cfg(cfg: Ch4Config) -> M3Config:
 # Stage II-B masked ERM
 # ============================================================
 def train_epoch_masked_stage2(
-        model: nn.Module,
-        loader,
-        optimizer,
-        criterion,
-        device,
-        *,
-        groups: Dict[str, List[str]],
-        selected_groups: List[str],
-        group_clip_norm: Optional[float] = None,
+    model: nn.Module,
+    loader,
+    optimizer,
+    criterion,
+    device,
+    *,
+    groups: Dict[str, List[str]],
+    selected_groups: List[str],
+    group_clip_norm: Optional[float] = None,
 ) -> None:
     model.train()
     for x, y in loader:
@@ -684,7 +750,11 @@ def train_epoch_masked_stage2(
         y = y.to(device, non_blocking=True).float().view(-1)
 
         optimizer.zero_grad(set_to_none=True)
-        logits = model.forward_logits(x).view(-1) if hasattr(model, "forward_logits") else model(x).view(-1)
+        logits = (
+            model.forward_logits(x).view(-1)
+            if hasattr(model, "forward_logits")
+            else model(x).view(-1)
+        )
         loss = criterion(logits, y)
         loss.backward()
 
@@ -710,7 +780,9 @@ def _val_selection_score(model: nn.Module, val_loader, device, cfg: Ch4Config) -
     f1 = float(f1_score(yy, pred, zero_division=0))
     ece = float(calculate_ece(yy, prob))
 
-    metric = str(getattr(cfg, "personalization_select_metric", "tradeoff")).lower().strip()
+    metric = (
+        str(getattr(cfg, "personalization_select_metric", "tradeoff")).lower().strip()
+    )
     if metric == "auc":
         return auc
     if metric == "f1":
@@ -720,13 +792,12 @@ def _val_selection_score(model: nn.Module, val_loader, device, cfg: Ch4Config) -
     return float(auc + f1 - ece)
 
 
-
 def _freeze_to_selected_groups(
-        model: nn.Module,
-        groups: Dict[str, List[str]],
-        selected_groups: List[str],
-        *,
-        freeze_bias_after_calib: bool = False,
+    model: nn.Module,
+    groups: Dict[str, List[str]],
+    selected_groups: List[str],
+    *,
+    freeze_bias_after_calib: bool = False,
 ) -> List[str]:
     """
     Enforce true masked personalization:
@@ -740,7 +811,11 @@ def _freeze_to_selected_groups(
     selected = [str(g) for g in selected_groups if str(g) in groups]
     set_trainable_by_selected_groups(model, groups, set(selected))
 
-    if freeze_bias_after_calib and hasattr(model, "fc") and getattr(model.fc, "bias", None) is not None:
+    if (
+        freeze_bias_after_calib
+        and hasattr(model, "fc")
+        and getattr(model.fc, "bias", None) is not None
+    ):
         try:
             model.fc.bias.requires_grad_(False)
         except Exception:
@@ -755,7 +830,9 @@ def _safe_logit(p: float, eps: float = 1e-6) -> float:
     return float(np.log(pp / (1.0 - pp)))
 
 
-def _smoothed_prior(pos: int, n: int, alpha: float, beta: float, fallback: float) -> float:
+def _smoothed_prior(
+    pos: int, n: int, alpha: float, beta: float, fallback: float
+) -> float:
     nn = int(max(0, n))
     if nn <= 0:
         return float(np.clip(float(fallback), 1e-6, 1.0 - 1e-6))
@@ -764,14 +841,14 @@ def _smoothed_prior(pos: int, n: int, alpha: float, beta: float, fallback: float
 
 
 def _prior_shift_value(
-        *,
-        p_i_raw: float,
-        p_g_raw: float,
-        n_i: int,
-        n_g: int,
-        n_pos_i: int,
-        n_pos_g: int,
-        cfg: Ch4Config,
+    *,
+    p_i_raw: float,
+    p_g_raw: float,
+    n_i: int,
+    n_g: int,
+    n_pos_i: int,
+    n_pos_g: int,
+    cfg: Ch4Config,
 ) -> float:
     pi = _smoothed_prior(
         int(n_pos_i),
@@ -791,21 +868,24 @@ def _prior_shift_value(
 
 
 def _candidate_cost(candidate) -> float:
-    return float(max(1, int(getattr(candidate, "K_pers", 1))) * max(0, int(getattr(candidate, "E_pers", 0))))
+    return float(
+        max(1, int(getattr(candidate, "K_pers", 1)))
+        * max(0, int(getattr(candidate, "E_pers", 0)))
+    )
 
 
 def _run_group_selection_for_stage2(
-        *,
-        model: nn.Module,
-        loader,
-        device,
-        cfg: Ch4Config,
-        m3_cfg: M3Config,
-        scope_groups,
-        k_select: int,
-        client_size: int,
-        large_threshold: int,
-        groups: Dict[str, List[str]],
+    *,
+    model: nn.Module,
+    loader,
+    device,
+    cfg: Ch4Config,
+    m3_cfg: M3Config,
+    scope_groups,
+    k_select: int,
+    client_size: int,
+    large_threshold: int,
+    groups: Dict[str, List[str]],
 ) -> Dict[str, object]:
     strategy = str(getattr(cfg, "m3_selection_strategy", "gradient")).strip().lower()
     if strategy not in {"random", "random_mask"}:
@@ -829,12 +909,18 @@ def _run_group_selection_for_stage2(
     k = int(max(1, int(k_select)))
     k = int(min(k, len(scope))) if scope else 0
     if k <= len(force_keep):
-        selected = set(list(sorted(force_keep, key=lambda g: stable_order.index(g)))[:k])
+        selected = set(
+            list(sorted(force_keep, key=lambda g: stable_order.index(g)))[:k]
+        )
     else:
         need = int(k - len(force_keep))
         non_forced = [g for g in stable_order if g in scope and g not in force_keep]
         if need > 0 and non_forced:
-            picked = list(np.random.choice(non_forced, size=min(need, len(non_forced)), replace=False))
+            picked = list(
+                np.random.choice(
+                    non_forced, size=min(need, len(non_forced)), replace=False
+                )
+            )
         else:
             picked = []
         selected = set(force_keep)
@@ -843,10 +929,16 @@ def _run_group_selection_for_stage2(
     set_trainable_by_selected_groups(model, groups_used, selected)
     return {
         "scores": {g: 0.0 for g in stable_order if g in scope},
-        "selected_groups": sorted(list(selected), key=lambda g: stable_order.index(g) if g in stable_order else 10**9),
+        "selected_groups": sorted(
+            list(selected),
+            key=lambda g: stable_order.index(g) if g in stable_order else 10**9,
+        ),
         "k_select": int(k),
         "ratio": None,
-        "forced_keep": sorted(list(force_keep), key=lambda g: stable_order.index(g) if g in stable_order else 10**9),
+        "forced_keep": sorted(
+            list(force_keep),
+            key=lambda g: stable_order.index(g) if g in stable_order else 10**9,
+        ),
         "stable_order": stable_order,
         "mask_vector": None,
         "limit_batches": 0,
@@ -857,21 +949,26 @@ def _run_group_selection_for_stage2(
 
 
 def _select_apc_candidate(
-        candidates: Dict[str, Any],
-        scores: Dict[str, float],
-        *,
-        min_gain: float = 1e-6,
+    candidates: Dict[str, Any],
+    scores: Dict[str, float],
+    *,
+    min_gain: float = 1e-6,
 ):
     if not candidates:
         raise ValueError("APC candidate set is empty.")
     neutral = candidates.get("neutral", next(iter(candidates.values())))
-    valid_names = [name for name in candidates.keys() if name in scores and np.isfinite(float(scores[name]))]
+    valid_names = [
+        name
+        for name in candidates.keys()
+        if name in scores and np.isfinite(float(scores[name]))
+    ]
     if not valid_names:
         return neutral
 
     best_score = max(float(scores[name]) for name in valid_names)
     close_names = [
-        name for name in valid_names
+        name
+        for name in valid_names
         if (best_score - float(scores[name])) <= float(min_gain)
     ]
     close_names.sort(key=lambda name: (_candidate_cost(candidates[name]), str(name)))
@@ -886,18 +983,18 @@ def _select_apc_candidate(
 
 
 def _run_candidate_for_val(
-        *,
-        base_model: nn.Module,
-        candidate,
-        client_loaders,
-        client_name: str,
-        groups: Dict[str, List[str]],
-        scope_groups,
-        m3_cfg: M3Config,
-        cfg: Ch4Config,
-        device,
-        n_i: int,
-        large_th: int,
+    *,
+    base_model: nn.Module,
+    candidate,
+    client_loaders,
+    client_name: str,
+    groups: Dict[str, List[str]],
+    scope_groups,
+    m3_cfg: M3Config,
+    cfg: Ch4Config,
+    device,
+    n_i: int,
+    large_th: int,
 ) -> Tuple[float, Dict[str, Any]]:
     trial = copy.deepcopy(base_model).to(device)
 
@@ -930,7 +1027,9 @@ def _run_candidate_for_val(
 
     params = [p for p in trial.parameters() if p.requires_grad]
     best_state = {k: v.detach().cpu().clone() for k, v in trial.state_dict().items()}
-    best_val = _val_selection_score(trial, client_loaders[client_name]["val"], device, cfg)
+    best_val = _val_selection_score(
+        trial, client_loaders[client_name]["val"], device, cfg
+    )
     bad = 0
 
     if params and E_pers > 0:
@@ -951,10 +1050,14 @@ def _run_candidate_for_val(
                 selected_groups=selected_groups,
                 group_clip_norm=cfg.group_clip_norm,
             )
-            cur = _val_selection_score(trial, client_loaders[client_name]["val"], device, cfg)
+            cur = _val_selection_score(
+                trial, client_loaders[client_name]["val"], device, cfg
+            )
             if np.isfinite(cur) and (cur > best_val + 1e-6):
                 best_val = float(cur)
-                best_state = {k: v.detach().cpu().clone() for k, v in trial.state_dict().items()}
+                best_state = {
+                    k: v.detach().cpu().clone() for k, v in trial.state_dict().items()
+                }
                 bad = 0
             else:
                 bad += 1
@@ -973,23 +1076,25 @@ def _run_candidate_for_val(
 # Pure paper Stage II
 # ============================================================
 def finetune_dapfl_stage2(
-        variant_name: str,
-        global_model: nn.Module,
-        client_loaders,
-        client_names: List[str],
-        client_sizes: List[int],
-        cfg: Ch4Config,
-        device,
-        *,
-        priors_per_client: Dict[str, Dict[str, float]],
-        p_g_qbar: float,
+    variant_name: str,
+    global_model: nn.Module,
+    client_loaders,
+    client_names: List[str],
+    client_sizes: List[int],
+    cfg: Ch4Config,
+    device,
+    *,
+    priors_per_client: Dict[str, Dict[str, float]],
+    p_g_qbar: float,
 ) -> Dict[str, Any]:
     client_metrics: Dict[str, Dict[str, Any]] = {}
     val_client_metrics: Dict[str, Dict[str, Any]] = {}
     client_debug: Dict[str, Dict[str, Any]] = {}
 
     n_med = int(np.median(client_sizes)) if client_sizes else 1
-    large_th = int(cfg.large_threshold) if cfg.large_threshold is not None else max(1, n_med)
+    large_th = (
+        int(cfg.large_threshold) if cfg.large_threshold is not None else max(1, n_med)
+    )
 
     apc_params = _build_apc_params_from_cfg(cfg)
     n_g_total = int(priors_per_client["_global"]["n_g"])
@@ -999,18 +1104,27 @@ def finetune_dapfl_stage2(
     for cname in client_names:
         n_i_tmp = int(priors_per_client[cname]["n_i"])
         n_pos_i_tmp = int(priors_per_client[cname]["n_pos_i"])
-        apc_count_rows.append({
-            "client": str(cname),
-            "client_name": str(cname),
-            "n_k_pos": int(n_pos_i_tmp),
-            "n_k_neg": int(max(0, n_i_tmp - n_pos_i_tmp)),
-            "n_total_pos": int(n_pos_g_total),
-            "n_total_neg": int(n_neg_g_total),
-        })
+        apc_count_rows.append(
+            {
+                "client": str(cname),
+                "client_name": str(cname),
+                "n_k_pos": int(n_pos_i_tmp),
+                "n_k_neg": int(max(0, n_i_tmp - n_pos_i_tmp)),
+                "n_total_pos": int(n_pos_g_total),
+                "n_total_neg": int(n_neg_g_total),
+            }
+        )
     apc_gamma_s = compute_gamma_s_from_counts(apc_count_rows, params=apc_params)
-    apc_controller_type = str(getattr(cfg, "apc_controller_type", "label_shift")).strip().lower()
-    use_product_apc = str(getattr(cfg, "apc_mapping_mode", "")).strip().lower() == "need_reliability_product"
-    apc_signal_mode = "need_reliability_product" if use_product_apc else "reliability_prior"
+    apc_controller_type = (
+        str(getattr(cfg, "apc_controller_type", "label_shift")).strip().lower()
+    )
+    use_product_apc = (
+        str(getattr(cfg, "apc_mapping_mode", "")).strip().lower()
+        == "need_reliability_product"
+    )
+    apc_signal_mode = (
+        "need_reliability_product" if use_product_apc else "reliability_prior"
+    )
     m3_cfg = _build_m3_cfg_from_cfg(cfg)
 
     product_apc_outputs = {}
@@ -1058,7 +1172,9 @@ def finetune_dapfl_stage2(
             val_loader=val_loader,
             device=device,
         )
-        m1_anchor_state = {k: v.detach().cpu().clone() for k, v in local.state_dict().items()}
+        m1_anchor_state = {
+            k: v.detach().cpu().clone() for k, v in local.state_dict().items()
+        }
         val_bce_before_m3 = _split_bce_loss(local, val_loader, device)
 
         # ---------------- M2/APC: reliability-adjusted output + optional validation gate ----------------
@@ -1104,7 +1220,9 @@ def finetune_dapfl_stage2(
                         large_th=int(large_th),
                     )
                     apc_candidate_scores[str(cand_name)] = float(score)
-                apc_selected = _select_apc_candidate(apc_candidates, apc_candidate_scores)
+                apc_selected = _select_apc_candidate(
+                    apc_candidates, apc_candidate_scores
+                )
             else:
                 apc_candidates = {"neutral": product_neutral}
                 apc_candidate_scores = {}
@@ -1129,9 +1247,7 @@ def finetune_dapfl_stage2(
                 apc_candidate_scores[str(cand_name)] = float(score)
             apc_selected = _select_apc_candidate(apc_candidates, apc_candidate_scores)
         else:
-            apc_candidates = {
-                "neutral": get_apc_output(**apc_kwargs)
-            }
+            apc_candidates = {"neutral": get_apc_output(**apc_kwargs)}
             apc_candidate_scores = {}
             apc_selected = apc_candidates["neutral"]
 
@@ -1172,25 +1288,35 @@ def finetune_dapfl_stage2(
             freeze_bias_after_calib=bool(cfg.freeze_bias_after_calib),
         )
         total_param_count = int(sum(int(p.numel()) for p in local.parameters()))
-        trainable_param_count = int(sum(int(p.numel()) for p in local.parameters() if bool(p.requires_grad)))
+        trainable_param_count = int(
+            sum(int(p.numel()) for p in local.parameters() if bool(p.requires_grad))
+        )
         trainable_param_ratio = float(trainable_param_count / max(1, total_param_count))
         selected_group_count = int(len(set(str(g) for g in selected_groups)))
         group_count = int(max(1, len(groups)))
-        effective_group_epoch_budget = float(int(E_pers) * selected_group_count / group_count)
+        effective_group_epoch_budget = float(
+            int(E_pers) * selected_group_count / group_count
+        )
         effective_param_epoch_budget = float(int(E_pers) * trainable_param_ratio)
 
         # ---------------- Stage II-B masked ERM ----------------
         params = [p for p in local.parameters() if p.requires_grad]
 
         # <--- 补充: Safe Fallback Initialization at Epoch 0
-        best_state = {k: v.detach().cpu().clone() for k, v in local.state_dict().items()}
+        best_state = {
+            k: v.detach().cpu().clone() for k, v in local.state_dict().items()
+        }
         best_val = float("-inf")
         bad = 0
 
         use_early_stop = bool(val_loader is not None)
         if use_early_stop:
             v0_logits, v0_y = collect_logits_labels(local, val_loader, device)
-            if v0_y.size == 0 or v0_logits.size == 0 or len(np.unique(v0_y.astype(int))) < 2:
+            if (
+                v0_y.size == 0
+                or v0_logits.size == 0
+                or len(np.unique(v0_y.astype(int))) < 2
+            ):
                 use_early_stop = False
             else:
                 best_val = _val_selection_score(local, val_loader, device, cfg)
@@ -1217,13 +1343,19 @@ def finetune_dapfl_stage2(
 
                 if not use_early_stop:
                     # Without early stop, we naturally keep the final epoch state
-                    best_state = {k: v.detach().cpu().clone() for k, v in local.state_dict().items()}
+                    best_state = {
+                        k: v.detach().cpu().clone()
+                        for k, v in local.state_dict().items()
+                    }
                     continue
 
                 cur = _val_selection_score(local, val_loader, device, cfg)
                 if np.isfinite(cur) and (cur > best_val + 1e-6):
                     best_val = float(cur)
-                    best_state = {k: v.detach().cpu().clone() for k, v in local.state_dict().items()}
+                    best_state = {
+                        k: v.detach().cpu().clone()
+                        for k, v in local.state_dict().items()
+                    }
                     bad = 0
                 else:
                     bad += 1
@@ -1248,12 +1380,17 @@ def finetune_dapfl_stage2(
                 group_dim = 0
                 for pname in pnames:
                     if pname in local_sd and pname in m1_anchor_state:
-                        diff = local_sd[pname].float().cpu() - m1_anchor_state[pname].float().cpu()
+                        diff = (
+                            local_sd[pname].float().cpu()
+                            - m1_anchor_state[pname].float().cpu()
+                        )
                         group_sq += float(diff.pow(2).sum().item())
                         group_dim += int(diff.numel())
-                per_group_normalized_drift[str(gname)] = float((group_sq ** 0.5) / ((max(1, group_dim)) ** 0.5))
+                per_group_normalized_drift[str(gname)] = float(
+                    (group_sq**0.5) / ((max(1, group_dim)) ** 0.5)
+                )
                 total_stage2_sq += float(group_sq)
-            stage2_drift_norm = float(total_stage2_sq ** 0.5)
+            stage2_drift_norm = float(total_stage2_sq**0.5)
         except Exception:
             per_group_normalized_drift = {}
 
@@ -1264,9 +1401,12 @@ def finetune_dapfl_stage2(
             for pname, pval in local.state_dict().items():
                 if pname in g_sd:
                     _drift_sq += (
-                        pval.float().cpu() - g_sd[pname].float().cpu()
-                    ).pow(2).sum().item()
-            realized_drift = float(_drift_sq ** 0.5)
+                        (pval.float().cpu() - g_sd[pname].float().cpu())
+                        .pow(2)
+                        .sum()
+                        .item()
+                    )
+            realized_drift = float(_drift_sq**0.5)
         except Exception:
             pass
         # -----------------------------------------------------------------------------------
@@ -1291,66 +1431,78 @@ def finetune_dapfl_stage2(
         val_client_metrics[name] = val_res
         client_metrics[name] = test_res
         client_debug[name] = {
-            "p_i_raw":            float(p_i_raw),
-            "p_g_qbar":           float(p_g_qbar),
-            "n_i":                int(n_i),
-            "n_pos_i":            int(n_pos_i),
-            "n_neg_i":            int(max(0, int(n_i) - int(n_pos_i))),
-            "n_g":                int(n_g),
-            "n_pos_g":            int(n_pos_g),
-            "n_neg_g":            int(max(0, int(n_g) - int(n_pos_g))),
-            "abs_shift":          float(prior_abs_shift),
-            "apc_need_value":      float(apc_meta.get("r_reliability", np.nan)),
-            "apc_need_q10":        None,
-            "apc_need_q90":        None,
-            "apc_shift_mode":      str(apc_signal_mode),
-            "apc_signal_mode":     str(apc_signal_mode),
-            "apc_formula":         str(apc_meta.get("apc_formula", "reliability_adjusted_prior_mismatch")),
-            "apc_mapping_mode":    str(apc_meta.get("mapping_mode", getattr(cfg, "apc_mapping_mode", "log_median"))),
-            "apc_controller_type": str(apc_meta.get("controller_type", apc_controller_type)),
+            "p_i_raw": float(p_i_raw),
+            "p_g_qbar": float(p_g_qbar),
+            "n_i": int(n_i),
+            "n_pos_i": int(n_pos_i),
+            "n_neg_i": int(max(0, int(n_i) - int(n_pos_i))),
+            "n_g": int(n_g),
+            "n_pos_g": int(n_pos_g),
+            "n_neg_g": int(max(0, int(n_g) - int(n_pos_g))),
+            "abs_shift": float(prior_abs_shift),
+            "apc_need_value": float(apc_meta.get("r_reliability", np.nan)),
+            "apc_need_q10": None,
+            "apc_need_q90": None,
+            "apc_shift_mode": str(apc_signal_mode),
+            "apc_signal_mode": str(apc_signal_mode),
+            "apc_formula": str(
+                apc_meta.get("apc_formula", "reliability_adjusted_prior_mismatch")
+            ),
+            "apc_mapping_mode": str(
+                apc_meta.get(
+                    "mapping_mode", getattr(cfg, "apc_mapping_mode", "log_median")
+                )
+            ),
+            "apc_controller_type": str(
+                apc_meta.get("controller_type", apc_controller_type)
+            ),
             "apc_formula_normalization": True,
-            "apc_pi_k":            float(apc_meta.get("pi_k", np.nan)),
-            "apc_pi_ref":          float(apc_meta.get("pi_ref", np.nan)),
-            "apc_delta_b":         float(apc_meta.get("delta_b", np.nan)),
-            "apc_delta":           float(apc_meta.get("delta", np.nan)),
-            "apc_sigma_delta":     float(apc_meta.get("sigma_delta", np.nan)),
-            "apc_q_reliability":   float(apc_meta.get("q_reliability", np.nan)),
-            "apc_s_reliability":   float(apc_meta.get("s_reliability", np.nan)),
-            "apc_u_k":             float(apc_meta.get("u_k", np.nan)),
-            "apc_alpha_k":         float(apc_meta.get("alpha_k", np.nan)),
-            "apc_r_final":         float(apc_meta.get("r_final", apc_meta.get("r_reliability", np.nan))),
-            "apc_n_k":             float(apc_meta.get("n_k", np.nan)),
+            "apc_pi_k": float(apc_meta.get("pi_k", np.nan)),
+            "apc_pi_ref": float(apc_meta.get("pi_ref", np.nan)),
+            "apc_delta_b": float(apc_meta.get("delta_b", np.nan)),
+            "apc_delta": float(apc_meta.get("delta", np.nan)),
+            "apc_sigma_delta": float(apc_meta.get("sigma_delta", np.nan)),
+            "apc_q_reliability": float(apc_meta.get("q_reliability", np.nan)),
+            "apc_s_reliability": float(apc_meta.get("s_reliability", np.nan)),
+            "apc_u_k": float(apc_meta.get("u_k", np.nan)),
+            "apc_alpha_k": float(apc_meta.get("alpha_k", np.nan)),
+            "apc_r_final": float(
+                apc_meta.get("r_final", apc_meta.get("r_reliability", np.nan))
+            ),
+            "apc_n_k": float(apc_meta.get("n_k", np.nan)),
             "apc_max_s_reliability": float(apc_meta.get("max_s_reliability", np.nan)),
-            "apc_gamma_s":         float(apc_meta.get("gamma_s", np.nan)),
-            "apc_gamma_s_scaled":  float(apc_meta.get("gamma_s_scaled", np.nan)),
-            "apc_direct_gamma":    float(apc_meta.get("direct_gamma", np.nan)),
-            "apc_r_neutral":       float(apc_meta.get("r_neutral", np.nan)),
-            "apc_r_reliability":   float(apc_meta.get("r_reliability", np.nan)),
-            "pi_k_tilde":          float(apc_meta.get("pi_k", np.nan)),
-            "pi_g_tilde":          float(apc_meta.get("pi_ref", np.nan)),
-            "delta_b_k":           float(apc_meta.get("delta_b", np.nan)),
-            "delta_k":             float(apc_meta.get("delta", np.nan)),
-            "sigma_delta_k":       float(apc_meta.get("sigma_delta", np.nan)),
-            "q_k":                 float(apc_meta.get("q_reliability", np.nan)),
-            "s_k":                 float(apc_meta.get("s_reliability", np.nan)),
-            "u_k":                 float(apc_meta.get("u_k", np.nan)),
-            "alpha_k":             float(apc_meta.get("alpha_k", np.nan)),
-            "r_final":             float(apc_meta.get("r_final", apc_meta.get("r_reliability", np.nan))),
-            "gamma_s":             float(apc_meta.get("gamma_s", np.nan)),
-            "r_k":                 float(apc_meta.get("r_reliability", np.nan)),
-            "m_k":                 int(apc_meta.get("m_k", K_pers)),
-            "e_k":                 int(apc_meta.get("e_k", E_pers)),
-            "adaptation_scope":    int(apc_meta.get("m_k", K_pers)),
-            "adaptation_depth":    int(apc_meta.get("e_k", E_pers)),
-            "m1_bias":            dict(m1_bias_diag),
-            "apc_name":           str(getattr(apc_selected, "name", "neutral")),
+            "apc_gamma_s": float(apc_meta.get("gamma_s", np.nan)),
+            "apc_gamma_s_scaled": float(apc_meta.get("gamma_s_scaled", np.nan)),
+            "apc_direct_gamma": float(apc_meta.get("direct_gamma", np.nan)),
+            "apc_r_neutral": float(apc_meta.get("r_neutral", np.nan)),
+            "apc_r_reliability": float(apc_meta.get("r_reliability", np.nan)),
+            "pi_k_tilde": float(apc_meta.get("pi_k", np.nan)),
+            "pi_g_tilde": float(apc_meta.get("pi_ref", np.nan)),
+            "delta_b_k": float(apc_meta.get("delta_b", np.nan)),
+            "delta_k": float(apc_meta.get("delta", np.nan)),
+            "sigma_delta_k": float(apc_meta.get("sigma_delta", np.nan)),
+            "q_k": float(apc_meta.get("q_reliability", np.nan)),
+            "s_k": float(apc_meta.get("s_reliability", np.nan)),
+            "u_k": float(apc_meta.get("u_k", np.nan)),
+            "alpha_k": float(apc_meta.get("alpha_k", np.nan)),
+            "r_final": float(
+                apc_meta.get("r_final", apc_meta.get("r_reliability", np.nan))
+            ),
+            "gamma_s": float(apc_meta.get("gamma_s", np.nan)),
+            "r_k": float(apc_meta.get("r_reliability", np.nan)),
+            "m_k": int(apc_meta.get("m_k", K_pers)),
+            "e_k": int(apc_meta.get("e_k", E_pers)),
+            "adaptation_scope": int(apc_meta.get("m_k", K_pers)),
+            "adaptation_depth": int(apc_meta.get("e_k", E_pers)),
+            "m1_bias": dict(m1_bias_diag),
+            "apc_name": str(getattr(apc_selected, "name", "neutral")),
             "apc_candidate_selection": bool(cfg.apc_candidate_selection),
             "apc_candidate_scores": dict(apc_candidate_scores),
             "apc_candidate_names": list(apc_candidates.keys()),
-            "K_pers":             int(K_pers),
-            "E_pers":             int(E_pers),
-            "rep_off":            bool(rep_off),
-            "selected_groups":    list(selected_groups),
+            "K_pers": int(K_pers),
+            "E_pers": int(E_pers),
+            "rep_off": bool(rep_off),
+            "selected_groups": list(selected_groups),
             "selected_group_count": int(selected_group_count),
             "trainable_param_names": list(trainable_param_names),
             "total_param_count": int(total_param_count),
@@ -1372,18 +1524,28 @@ def finetune_dapfl_stage2(
                 "validation_threshold_fixed_for_test": True,
                 "epoch0_fallback_checkpoint": True,
             },
-            "m3_scores":          dict(sel_pack.get("scores", {})),
-            "m3_mask_vector":     sel_pack.get("mask_vector", None),
-            "m3_selection_strategy": str(getattr(cfg, "m3_selection_strategy", "gradient")),
-            "stage2_val_bce_before_m3": float(val_bce_before_m3) if np.isfinite(float(val_bce_before_m3)) else None,
-            "stage2_val_bce_after_m3": float(val_bce_after_m3) if np.isfinite(float(val_bce_after_m3)) else None,
-            "stage2_drift_norm": float(stage2_drift_norm) if np.isfinite(float(stage2_drift_norm)) else None,
+            "m3_scores": dict(sel_pack.get("scores", {})),
+            "m3_mask_vector": sel_pack.get("mask_vector", None),
+            "m3_selection_strategy": str(
+                getattr(cfg, "m3_selection_strategy", "gradient")
+            ),
+            "stage2_val_bce_before_m3": float(val_bce_before_m3)
+            if np.isfinite(float(val_bce_before_m3))
+            else None,
+            "stage2_val_bce_after_m3": float(val_bce_after_m3)
+            if np.isfinite(float(val_bce_after_m3))
+            else None,
+            "stage2_drift_norm": float(stage2_drift_norm)
+            if np.isfinite(float(stage2_drift_norm))
+            else None,
             "per_group_normalized_drift": dict(per_group_normalized_drift),
-            "thr":                float(thr),
-            "train_size":         int(n_i),
-            "best_val_score":     float(best_val) if np.isfinite(best_val) else None,
+            "thr": float(thr),
+            "train_size": int(n_i),
+            "best_val_score": float(best_val) if np.isfinite(best_val) else None,
             # ── 新增字段（用于 APC 验证图）──────────────────────────────
-            "realized_drift":     float(realized_drift), # ‖Θ_k,pers − Θ_global‖₂ (Prop 6.2)
+            "realized_drift": float(
+                realized_drift
+            ),  # ‖Θ_k,pers − Θ_global‖₂ (Prop 6.2)
         }
 
     agg = _aggregate_client_metrics(client_metrics)
@@ -1402,17 +1564,17 @@ def finetune_dapfl_stage2(
 # Public runner
 # ============================================================
 def run_dapfl_stage2(
-        backbone_name: str,
-        backbone_model: nn.Module,
-        client_loaders,
-        central,
-        client_names: List[str],
-        client_sizes: List[int],
-        input_dim: int,
-        cfg: Ch4Config,
-        device,
-        *,
-        qbar: Optional[Dict[str, float]] = None,
+    backbone_name: str,
+    backbone_model: nn.Module,
+    client_loaders,
+    central,
+    client_names: List[str],
+    client_sizes: List[int],
+    input_dim: int,
+    cfg: Ch4Config,
+    device,
+    *,
+    qbar: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """
     qbar should come from Stage I realized exposure logs.
@@ -1438,4 +1600,3 @@ def run_dapfl_stage2(
         priors_per_client=priors_per_client,
         p_g_qbar=float(p_g_qbar),
     )
-

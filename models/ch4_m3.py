@@ -21,7 +21,7 @@ class M3Config:
     #   s_{k,g} = E_B [ ||grad_g||_2 / (sqrt(d_g) + eps) ]
     # robustly estimated by median over mini-batches.
     # --------------------------------------------------------
-    score_mode: str = "dimnorm_l2"   # recommended / paper-aligned
+    score_mode: str = "dimnorm_l2"  # recommended / paper-aligned
     grad_score_batches: int = 10
     grad_score_batches_large: Optional[int] = 20
     eps: float = 1e-8
@@ -30,7 +30,7 @@ class M3Config:
     force_keep_head: bool = True
 
     # selection
-    allow_k_zero: bool = False   # paper effectively keeps head => K>=1
+    allow_k_zero: bool = False  # paper effectively keeps head => K>=1
 
     # criterion consistency
     pos_weight: Optional[float] = None
@@ -60,7 +60,9 @@ def build_param_groups(model: nn.Module) -> Dict[str, List[str]]:
     Preferred: model.named_param_groups()
     Fallback: group by top-level module prefix.
     """
-    if hasattr(model, "named_param_groups") and callable(getattr(model, "named_param_groups")):
+    if hasattr(model, "named_param_groups") and callable(
+        getattr(model, "named_param_groups")
+    ):
         out = model.named_param_groups()
         return {str(k): list(v) for k, v in out.items()}
 
@@ -76,7 +78,9 @@ def get_group_order(model: nn.Module, groups: Dict[str, List[str]]) -> List[str]
     Stable order for deterministic tie-breaking.
     Prefer model.get_group_order() if available.
     """
-    if hasattr(model, "get_group_order") and callable(getattr(model, "get_group_order")):
+    if hasattr(model, "get_group_order") and callable(
+        getattr(model, "get_group_order")
+    ):
         order = list(getattr(model, "get_group_order")())
         order = [g for g in order if g in groups]
         remaining = sorted([g for g in groups.keys() if g not in order])
@@ -99,7 +103,9 @@ def infer_head_group_names(model: nn.Module, groups: Dict[str, List[str]]) -> Se
     if not keep:
         for g, pnames in groups.items():
             if any(
-                pn.startswith("fc.") or pn.startswith("head.") or pn.startswith("classifier.")
+                pn.startswith("fc.")
+                or pn.startswith("head.")
+                or pn.startswith("classifier.")
                 for pn in pnames
             ):
                 keep.add(g)
@@ -150,8 +156,14 @@ def _group_numel(
 # ============================================================
 # Forward helper
 # ============================================================
-def _forward_raw_logits(model: nn.Module, x: torch.Tensor, prefer_forward_logits: bool = True) -> torch.Tensor:
-    if prefer_forward_logits and hasattr(model, "forward_logits") and callable(getattr(model, "forward_logits")):
+def _forward_raw_logits(
+    model: nn.Module, x: torch.Tensor, prefer_forward_logits: bool = True
+) -> torch.Tensor:
+    if (
+        prefer_forward_logits
+        and hasattr(model, "forward_logits")
+        and callable(getattr(model, "forward_logits"))
+    ):
         return model.forward_logits(x).view(-1)
     return model(x).view(-1)
 
@@ -189,7 +201,9 @@ def _tensor_dimnorm_l2_score(g: torch.Tensor, eps: float = 1e-8) -> float:
     numel = int(g.numel())
     if numel <= 0:
         return 0.0
-    return float(torch.norm(g.detach(), p=2).item() / (np.sqrt(float(numel)) + float(eps)))
+    return float(
+        torch.norm(g.detach(), p=2).item() / (np.sqrt(float(numel)) + float(eps))
+    )
 
 
 def _tensor_abs_mean_score(g: torch.Tensor, eps: float = 1e-8) -> float:
@@ -303,7 +317,9 @@ def compute_group_grad_scores_within_scope(
 
             model.zero_grad(set_to_none=True)
 
-            logits = _forward_raw_logits(model, x, prefer_forward_logits=prefer_forward_logits)
+            logits = _forward_raw_logits(
+                model, x, prefer_forward_logits=prefer_forward_logits
+            )
             if logits.numel() != y.numel():
                 raise ValueError(
                     f"[M3] logits and labels size mismatch: logits={tuple(logits.shape)}, y={tuple(y.shape)}."
@@ -510,7 +526,9 @@ def run_m3_selection(
     # force keep head
     force_keep: Set[str] = set()
     if cfg.force_keep_head:
-        force_keep = infer_head_group_names(model, groups_used).intersection(scope_groups)
+        force_keep = infer_head_group_names(model, groups_used).intersection(
+            scope_groups
+        )
 
     if (not cfg.enabled) or (not scope_groups):
         set_trainable_by_selected_groups(model, groups_used, set())
@@ -580,7 +598,9 @@ def run_m3_selection(
 
     # convenient mask vector if model exposes stable paper order
     mask_vector = None
-    if hasattr(model, "get_mask_vector") and callable(getattr(model, "get_mask_vector")):
+    if hasattr(model, "get_mask_vector") and callable(
+        getattr(model, "get_mask_vector")
+    ):
         try:
             mask_vector = model.get_mask_vector(selected)
         except Exception:
@@ -588,19 +608,19 @@ def run_m3_selection(
 
     return {
         "scores": {k: float(v) for k, v in scores.items()},
-        "selected_groups": sorted(list(selected), key=lambda g: stable_order.index(g) if g in stable_order else 10**9),
+        "selected_groups": sorted(
+            list(selected),
+            key=lambda g: stable_order.index(g) if g in stable_order else 10**9,
+        ),
         "k_select": int(K),
         "ratio": None if ratio is None else float(ratio),
-        "forced_keep": sorted(list(force_keep), key=lambda g: stable_order.index(g) if g in stable_order else 10**9),
+        "forced_keep": sorted(
+            list(force_keep),
+            key=lambda g: stable_order.index(g) if g in stable_order else 10**9,
+        ),
         "stable_order": stable_order,
         "mask_vector": mask_vector,
         "limit_batches": int(limit),
         "score_mode": str(cfg.score_mode),
         "skipped": False,
     }
-
-
-
-
-
-

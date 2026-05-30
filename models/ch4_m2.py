@@ -69,12 +69,14 @@ def _base_reliability_terms(
 
     delta_b = float(_safe_logit(pi_k) - _safe_logit(pi_ref))
     delta = float(abs(delta_b))
-    sigma_delta = float(np.sqrt(
-        1.0 / (float(nkp) + eps_sm)
-        + 1.0 / (float(nkn) + eps_sm)
-        + 1.0 / (float(ntp) + eps_sm)
-        + 1.0 / (float(ntn) + eps_sm)
-    ))
+    sigma_delta = float(
+        np.sqrt(
+            1.0 / (float(nkp) + eps_sm)
+            + 1.0 / (float(nkn) + eps_sm)
+            + 1.0 / (float(ntp) + eps_sm)
+            + 1.0 / (float(ntn) + eps_sm)
+        )
+    )
     q = float(delta / (sigma_delta + eps_num))
     s = float(np.log1p(max(0.0, q)))
 
@@ -133,11 +135,15 @@ def compute_reliability_adjusted_intensity(
         params=params,
     )
     raw_gamma_s = float(terms["s"] if gamma_s is None else gamma_s)
-    gamma_s_scaled = float(max(float(params.gamma_s_scale) * raw_gamma_s, float(params.eps_num)))
+    gamma_s_scaled = float(
+        max(float(params.gamma_s_scale) * raw_gamma_s, float(params.eps_num))
+    )
     s = float(max(0.0, terms["s"]))
     mapping_mode = str(getattr(params, "mapping_mode", "log_median")).strip().lower()
     if mapping_mode in {"direct", "direct_gamma", "old", "old_direct", "old_gamma"}:
-        gamma_direct = float(max(float(getattr(params, "direct_gamma", 1.96)), float(params.eps_num)))
+        gamma_direct = float(
+            max(float(getattr(params, "direct_gamma", 1.96)), float(params.eps_num))
+        )
         q = float(max(0.0, terms["q"]))
         r = float(q / (q + gamma_direct)) if q > 0.0 else 0.0
         formula = "direct_gamma_reliability_prior_mismatch"
@@ -166,7 +172,9 @@ def _map_intensity_to_scope_depth(r: float, params: APCParams) -> Dict[str, int]
     e_min = int(max(0, int(params.E_pers_min)))
     e_max = int(max(e_min, int(params.E_pers_max)))
 
-    scope_mapping_mode = str(getattr(params, "scope_mapping_mode", "floor")).strip().lower()
+    scope_mapping_mode = (
+        str(getattr(params, "scope_mapping_mode", "floor")).strip().lower()
+    )
     if scope_mapping_mode in {"ceil", "ceiling"}:
         k_pers = int(1 + np.ceil(float(g - 1) * r - 1e-12))
     else:
@@ -201,14 +209,16 @@ def compute_need_reliability_product_outputs(
             params=params,
         )
         n_k = int(max(0, n_k_pos + n_k_neg))
-        prepared.append({
-            "client": client,
-            "n_k_pos": float(n_k_pos),
-            "n_k_neg": float(n_k_neg),
-            "n_k": float(n_k),
-            "log_n_k": float(np.log(float(n_k) + 1.0)),
-            **terms,
-        })
+        prepared.append(
+            {
+                "client": client,
+                "n_k_pos": float(n_k_pos),
+                "n_k_neg": float(n_k_neg),
+                "n_k": float(n_k),
+                "log_n_k": float(np.log(float(n_k) + 1.0)),
+                **terms,
+            }
+        )
 
     if not prepared:
         return {}
@@ -220,7 +230,11 @@ def compute_need_reliability_product_outputs(
     outputs: Dict[str, APCOutput] = {}
     for row in prepared:
         u_k = float(float(row["s"]) / (max_s + eps_num)) if max_s > 0.0 else 0.0
-        alpha_k = float(float(row["log_n_k"]) / (max_log_n + eps_num)) if max_log_n > 0.0 else 0.0
+        alpha_k = (
+            float(float(row["log_n_k"]) / (max_log_n + eps_num))
+            if max_log_n > 0.0
+            else 0.0
+        )
         u_k = float(np.clip(u_k, 0.0, 1.0))
         alpha_k = float(np.clip(alpha_k, 0.0, 1.0))
         r_k = float(np.clip(u_k * alpha_k, 0.0, 1.0))
@@ -281,13 +295,15 @@ def get_apc_candidates_from_output(
         r = float(np.clip(float(r_value), 0.0, 1.0))
         mapped = _map_intensity_to_scope_depth(r, params)
         meta = dict(metadata)
-        meta.update({
-            "candidate_name": str(name),
-            "r_reliability": float(r),
-            "r_final": float(r),
-            "m_k": float(mapped["K_pers"]),
-            "e_k": float(mapped["E_pers"]),
-        })
+        meta.update(
+            {
+                "candidate_name": str(name),
+                "r_reliability": float(r),
+                "r_final": float(r),
+                "m_k": float(mapped["K_pers"]),
+                "e_k": float(mapped["E_pers"]),
+            }
+        )
         return APCOutput(
             name=str(name),
             K_pers=int(mapped["K_pers"]),
@@ -314,7 +330,9 @@ def _make_output(
     mapped = _map_intensity_to_scope_depth(r, params)
     metadata = {
         "signal_mode": "reliability_prior",
-        "apc_formula": str(reliability.get("formula", "log_median_reliability_prior_mismatch")),
+        "apc_formula": str(
+            reliability.get("formula", "log_median_reliability_prior_mismatch")
+        ),
         "mapping_mode": str(reliability.get("mapping_mode", "log_median")),
         "pi_k": float(reliability["pi_k"]),
         "pi_ref": float(reliability["pi_ref"]),

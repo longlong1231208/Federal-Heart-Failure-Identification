@@ -99,8 +99,8 @@ class GRUModel(nn.Module):
         Returns final hidden representation [B, H].
         """
         x = self._normalize_input(x)
-        out, _ = self.gru(x)          # [B, T, H]
-        last_hidden = out[:, -1, :]   # assumes no padding
+        out, _ = self.gru(x)  # [B, T, H]
+        last_hidden = out[:, -1, :]  # assumes no padding
         return last_hidden
 
     def forward_logits(self, x: torch.Tensor) -> torch.Tensor:
@@ -238,7 +238,9 @@ class GRUModel(nn.Module):
         valid_groups = set(groups.keys())
         invalid = active - valid_groups
         if invalid:
-            raise ValueError(f"Unknown groups in set_trainable_groups: {sorted(invalid)}")
+            raise ValueError(
+                f"Unknown groups in set_trainable_groups: {sorted(invalid)}"
+            )
 
         active_names = set()
         for g in active:
@@ -287,7 +289,9 @@ class GRUModel(nn.Module):
                 f"set_head_bias: expected shape {tuple(self.fc.bias.shape)}, "
                 f"got {tuple(new_bias.shape)}"
             )
-        self.fc.bias.copy_(new_bias.to(device=self.fc.bias.device, dtype=self.fc.bias.dtype))
+        self.fc.bias.copy_(
+            new_bias.to(device=self.fc.bias.device, dtype=self.fc.bias.dtype)
+        )
 
     @torch.no_grad()
     def apply_head_bias_shift(self, delta_bias: float) -> None:
@@ -331,5 +335,3 @@ class GRUModel(nn.Module):
         """
         prob = self.predict_proba(x)
         return (prob >= float(threshold)).long()
-
-

@@ -34,6 +34,7 @@ Python 3.10 or newer is recommended. If CUDA is available, PyTorch will use GPU 
 ## Documentation
 
 - `docs/method_overview.md`: concise overview of the DA-PFL pipeline and M1/M2/M3 modules.
+- `docs/expected_results.md`: thesis reference metrics and reproduction notes.
 - `data/README.md`: dataset placement and data-file notes.
 - `LICENSE`: license terms for using this code.
 

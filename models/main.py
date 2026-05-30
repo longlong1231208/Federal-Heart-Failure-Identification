@@ -167,7 +167,9 @@ def _clean_apc_signal_modes(*items: Optional[str]) -> List[str]:
         for raw in _parse_csv_strings(item):
             mode = _safe_key_part(raw)
             if mode not in allowed:
-                raise ValueError(f"Unsupported APC signal mode '{raw}'. Allowed: {sorted(allowed)}")
+                raise ValueError(
+                    f"Unsupported APC signal mode '{raw}'. Allowed: {sorted(allowed)}"
+                )
             if mode not in modes:
                 modes.append(mode)
     return modes or ["reliability_prior"]
@@ -190,6 +192,7 @@ def _register_full_method_labels(modes: List[str], *, multi_mode: bool) -> None:
                 f"Full DA-PFL with M1 prior correction, need-by-reliability M2/APC, "
                 f"M3 masked personalization, and signal mode '{mode}'."
             )
+
 
 PAPER_CORE_METRICS = [
     "global_auc",
@@ -275,14 +278,20 @@ def _json_sanitize(obj: Any):
 # -----------------------------------------------------------------------------
 # Standard training loops for external baselines
 # -----------------------------------------------------------------------------
-def train_epoch_standard(model: nn.Module, loader, optimizer, criterion, device) -> None:
+def train_epoch_standard(
+    model: nn.Module, loader, optimizer, criterion, device
+) -> None:
     model.train()
     for x, y in loader:
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True).float().view(-1)
 
         optimizer.zero_grad(set_to_none=True)
-        logits = model.forward_logits(x).view(-1) if hasattr(model, "forward_logits") else model(x).view(-1)
+        logits = (
+            model.forward_logits(x).view(-1)
+            if hasattr(model, "forward_logits")
+            else model(x).view(-1)
+        )
         loss = criterion(logits, y)
         loss.backward()
         optimizer.step()
@@ -305,13 +314,19 @@ def train_epoch_ditto(
         y = y.to(device, non_blocking=True).float().view(-1)
 
         optimizer.zero_grad(set_to_none=True)
-        logits = model.forward_logits(x).view(-1) if hasattr(model, "forward_logits") else model(x).view(-1)
+        logits = (
+            model.forward_logits(x).view(-1)
+            if hasattr(model, "forward_logits")
+            else model(x).view(-1)
+        )
         loss = criterion(logits, y)
 
         prox_loss = 0.0
         for p_local, p_global in zip(model.parameters(), global_model.parameters()):
             if p_local.requires_grad:
-                prox_loss = prox_loss + torch.sum((p_local - p_global.detach().to(device)) ** 2)
+                prox_loss = prox_loss + torch.sum(
+                    (p_local - p_global.detach().to(device)) ** 2
+                )
 
         total_loss = loss + 0.5 * float(lam) * prox_loss
         total_loss.backward()
@@ -335,13 +350,19 @@ def train_epoch_proximal_to_anchor(
         y = y.to(device, non_blocking=True).float().view(-1)
 
         optimizer.zero_grad(set_to_none=True)
-        logits = model.forward_logits(x).view(-1) if hasattr(model, "forward_logits") else model(x).view(-1)
+        logits = (
+            model.forward_logits(x).view(-1)
+            if hasattr(model, "forward_logits")
+            else model(x).view(-1)
+        )
         loss = criterion(logits, y)
 
         prox_loss = 0.0
         for p_local, p_anchor in zip(model.parameters(), anchor_model.parameters()):
             if p_local.requires_grad:
-                prox_loss = prox_loss + torch.sum((p_local - p_anchor.detach().to(device)) ** 2)
+                prox_loss = prox_loss + torch.sum(
+                    (p_local - p_anchor.detach().to(device)) ** 2
+                )
 
         total_loss = loss + 0.5 * float(lam) * prox_loss
         total_loss.backward()
@@ -351,7 +372,9 @@ def train_epoch_proximal_to_anchor(
 # -----------------------------------------------------------------------------
 # Evaluation helpers
 # -----------------------------------------------------------------------------
-def _eval_model_on_client(model, name: str, client_loaders, cfg: Ch4Config, device) -> Dict[str, Any]:
+def _eval_model_on_client(
+    model, name: str, client_loaders, cfg: Ch4Config, device
+) -> Dict[str, Any]:
     val_loader = client_loaders[name]["val"]
     test_loader = client_loaders[name]["test"]
 
@@ -369,7 +392,9 @@ def _compact_metrics(res: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _with_client_metrics(agg: Dict[str, Any], client_metrics: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def _with_client_metrics(
+    agg: Dict[str, Any], client_metrics: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
     out = dict(agg)
     out["client_metrics"] = client_metrics
     return out
@@ -433,7 +458,11 @@ def _baseline_budget_defaults(method_name: str) -> Dict[str, Any]:
             "effective_param_epoch_budget": None,
         }
 
-    if method_name in {"External_FedAvg", "Main_Global_Only_StageI", "Main_Global_M1_Only"}:
+    if method_name in {
+        "External_FedAvg",
+        "Main_Global_Only_StageI",
+        "Main_Global_M1_Only",
+    }:
         return {
             "budget_type": "no_representation_personalization",
             "local_training_epochs": None,
@@ -469,7 +498,9 @@ def _client_level_rows(
     if not isinstance(client_debug, dict):
         client_debug = {}
 
-    clients = sorted(set(map(str, client_metrics.keys())) | set(map(str, client_debug.keys())))
+    clients = sorted(
+        set(map(str, client_metrics.keys())) | set(map(str, client_debug.keys()))
+    )
     rows: List[Dict[str, Any]] = []
     for client in clients:
         metrics = client_metrics.get(client, {})
@@ -480,13 +511,19 @@ def _client_level_rows(
             dbg = {}
 
         m1 = dbg.get("m1_bias", {}) if isinstance(dbg.get("m1_bias"), dict) else {}
-        scores = dbg.get("m3_scores", {}) if isinstance(dbg.get("m3_scores"), dict) else {}
+        scores = (
+            dbg.get("m3_scores", {}) if isinstance(dbg.get("m3_scores"), dict) else {}
+        )
         selected = dbg.get("selected_groups", [])
-        selected_set = set(str(x) for x in selected) if isinstance(selected, list) else set()
+        selected_set = (
+            set(str(x) for x in selected) if isinstance(selected, list) else set()
+        )
         budget_defaults = _baseline_budget_defaults(str(method_name))
         selected_count = _safe_int(
             dbg.get("selected_group_count"),
-            int(len(selected_set)) if selected_set else budget_defaults.get("selected_count"),
+            int(len(selected_set))
+            if selected_set
+            else budget_defaults.get("selected_count"),
         )
 
         row: Dict[str, Any] = {
@@ -499,7 +536,9 @@ def _client_level_rows(
             "client_auc": _safe_float(metrics.get("auc", metrics.get("roc_auc"))),
             "client_f1": _safe_float(metrics.get("f1")),
             "client_ece": _safe_float(metrics.get("ece")),
-            "client_threshold": _safe_float(metrics.get("threshold", metrics.get("thr"))),
+            "client_threshold": _safe_float(
+                metrics.get("threshold", metrics.get("thr"))
+            ),
             "n_i": _safe_int(dbg.get("n_i", dbg.get("train_size"))),
             "train_size": _safe_int(dbg.get("train_size", dbg.get("n_i"))),
             "p_i_raw": _safe_float(dbg.get("p_i_raw")),
@@ -508,7 +547,11 @@ def _client_level_rows(
             "apc_shift_mode": str(dbg.get("apc_shift_mode", "")),
             "apc_signal_mode": str(dbg.get("apc_signal_mode", "")),
             "apc_formula": str(dbg.get("apc_formula", "")),
-            "apc_formula_normalization": bool(dbg.get("apc_formula_normalization", False)) if dbg else None,
+            "apc_formula_normalization": bool(
+                dbg.get("apc_formula_normalization", False)
+            )
+            if dbg
+            else None,
             "apc_pi_k": _safe_float(dbg.get("apc_pi_k")),
             "apc_pi_ref": _safe_float(dbg.get("apc_pi_ref")),
             "apc_delta_b": _safe_float(dbg.get("apc_delta_b")),
@@ -529,13 +572,17 @@ def _client_level_rows(
             "m1_bias_before": _safe_float(m1.get("bias_before")),
             "m1_bias_after": _safe_float(m1.get("bias_after")),
             "apc_name": str(dbg.get("apc_name", "")),
-            "apc_candidate_selection": bool(dbg.get("apc_candidate_selection", False)) if dbg else None,
+            "apc_candidate_selection": bool(dbg.get("apc_candidate_selection", False))
+            if dbg
+            else None,
             "K_pers": _safe_int(dbg.get("K_pers"), budget_defaults.get("K_pers")),
             "E_pers": _safe_int(dbg.get("E_pers"), budget_defaults.get("E_pers")),
             "rep_off": bool(dbg.get("rep_off", False)) if dbg else None,
             "selected_count": selected_count,
             "selected_groups": ";".join(sorted(selected_set)),
-            "budget_type": str(dbg.get("budget_type", budget_defaults.get("budget_type", ""))),
+            "budget_type": str(
+                dbg.get("budget_type", budget_defaults.get("budget_type", ""))
+            ),
             "local_training_epochs": _safe_int(
                 dbg.get("local_training_epochs"),
                 budget_defaults.get("local_training_epochs"),
@@ -557,7 +604,10 @@ def _client_level_rows(
                 budget_defaults.get("effective_group_epoch_budget"),
             ),
             "full_model_equiv_epoch_budget": _safe_float(
-                dbg.get("full_model_equiv_epoch_budget", dbg.get("effective_group_epoch_budget")),
+                dbg.get(
+                    "full_model_equiv_epoch_budget",
+                    dbg.get("effective_group_epoch_budget"),
+                ),
                 budget_defaults.get("full_model_equiv_epoch_budget"),
             ),
             "effective_param_epoch_budget": _safe_float(
@@ -574,7 +624,9 @@ def _client_level_rows(
     return rows
 
 
-def _stage1_history_rows(*, repeat: int, seed: int, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _stage1_history_rows(
+    *, repeat: int, seed: int, history: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for item in history:
         if not isinstance(item, dict):
@@ -613,7 +665,15 @@ def _stage1_history_summary_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, A
             continue
         by_round.setdefault(int(rnd), []).append(row)
 
-    metrics = ["train_loss", "val_loss", "global_auc", "macro_auc", "macro_f1", "macro_ece", "gini"]
+    metrics = [
+        "train_loss",
+        "val_loss",
+        "global_auc",
+        "macro_auc",
+        "macro_f1",
+        "macro_ece",
+        "gini",
+    ]
     out: List[Dict[str, Any]] = []
     for rnd in sorted(by_round.keys()):
         group = by_round[rnd]
@@ -643,11 +703,16 @@ def _budget_summary_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     out: List[Dict[str, Any]] = []
     for (table, method_key, paper_label), group in sorted(groups.items()):
-        budget_types = [str(r.get("budget_type", "")) for r in group if str(r.get("budget_type", ""))]
-        budget_type = max(set(budget_types), key=budget_types.count) if budget_types else ""
-        applicable = [
-            bool(r.get("personalization_budget_applicable", True))
+        budget_types = [
+            str(r.get("budget_type", ""))
             for r in group
+            if str(r.get("budget_type", ""))
+        ]
+        budget_type = (
+            max(set(budget_types), key=budget_types.count) if budget_types else ""
+        )
+        applicable = [
+            bool(r.get("personalization_budget_applicable", True)) for r in group
         ]
         row: Dict[str, Any] = {
             "table": table,
@@ -775,7 +840,11 @@ def _perfedavg_client_update_first_order(
     local_model.load_state_dict(global_state, strict=True)
 
     crit = nn.BCEWithLogitsLoss()
-    opt = optim.Adam(local_model.parameters(), lr=float(inner_lr), weight_decay=float(cfg.weight_decay))
+    opt = optim.Adam(
+        local_model.parameters(),
+        lr=float(inner_lr),
+        weight_decay=float(cfg.weight_decay),
+    )
 
     step_count = 0
     while step_count < int(local_steps):
@@ -784,7 +853,11 @@ def _perfedavg_client_update_first_order(
             y = y.to(device, non_blocking=True).float().view(-1)
 
             opt.zero_grad(set_to_none=True)
-            logits = local_model.forward_logits(x).view(-1) if hasattr(local_model, "forward_logits") else local_model(x).view(-1)
+            logits = (
+                local_model.forward_logits(x).view(-1)
+                if hasattr(local_model, "forward_logits")
+                else local_model(x).view(-1)
+            )
             loss = crit(logits, y)
             loss.backward()
             opt.step()
@@ -796,7 +869,9 @@ def _perfedavg_client_update_first_order(
     new_state = copy.deepcopy(global_state)
     local_state = local_model.state_dict()
     for k in new_state.keys():
-        new_state[k] = global_state[k] + float(meta_lr) * (local_state[k] - global_state[k])
+        new_state[k] = global_state[k] + float(meta_lr) * (
+            local_state[k] - global_state[k]
+        )
     return new_state
 
 
@@ -831,7 +906,9 @@ def run_perfedavg_backbone(
             )
             local_states.append(st)
 
-        global_state = _state_dict_weighted_average(local_states, [float(n) for n in client_sizes])
+        global_state = _state_dict_weighted_average(
+            local_states, [float(n) for n in client_sizes]
+        )
         global_model.load_state_dict(global_state, strict=True)
 
     return global_model
@@ -852,7 +929,11 @@ def _pfedme_personalize_from_global(
     local_model.load_state_dict(copy.deepcopy(global_model.state_dict()), strict=True)
 
     crit = nn.BCEWithLogitsLoss()
-    opt = optim.Adam(local_model.parameters(), lr=float(personal_lr), weight_decay=float(cfg.weight_decay))
+    opt = optim.Adam(
+        local_model.parameters(),
+        lr=float(personal_lr),
+        weight_decay=float(cfg.weight_decay),
+    )
 
     for _ in range(int(personal_epochs)):
         train_epoch_proximal_to_anchor(
@@ -905,11 +986,15 @@ def run_pfedme_global_model(
             anchor_state = copy.deepcopy(anchor_model.state_dict())
             personal_state = personalized_model.state_dict()
             for k in anchor_state.keys():
-                anchor_state[k] = anchor_state[k] - float(beta) * (anchor_state[k] - personal_state[k])
+                anchor_state[k] = anchor_state[k] - float(beta) * (
+                    anchor_state[k] - personal_state[k]
+                )
 
             local_anchor_states.append(anchor_state)
 
-        global_state = _state_dict_weighted_average(local_anchor_states, [float(n) for n in client_sizes])
+        global_state = _state_dict_weighted_average(
+            local_anchor_states, [float(n) for n in client_sizes]
+        )
         global_model.load_state_dict(global_state, strict=True)
 
     return global_model
@@ -1042,7 +1127,9 @@ def _train_stage1_fedavg_backbone(
     }
 
 
-def _run_full_dapfl_from_bundle(seed: int, base_cfg: Ch4Config, bundle: Dict[str, Any]) -> Dict[str, Any]:
+def _run_full_dapfl_from_bundle(
+    seed: int, base_cfg: Ch4Config, bundle: Dict[str, Any]
+) -> Dict[str, Any]:
     _set_method_seed(seed, 700)
     full_cfg = _cfg_full(base_cfg)
     return run_dapfl_stage2(
@@ -1089,14 +1176,22 @@ def _run_external_baselines_one_repeat(
     _set_method_seed(seed, 101)
     local_only_metrics = {}
     for name in client_names:
-        model = GRUModel(input_dim, base_cfg.hidden_dim, base_cfg.num_layers, base_cfg.dropout).to(device=DEVICE)
-        opt = optim.Adam(model.parameters(), lr=base_cfg.lr, weight_decay=base_cfg.weight_decay)
+        model = GRUModel(
+            input_dim, base_cfg.hidden_dim, base_cfg.num_layers, base_cfg.dropout
+        ).to(device=DEVICE)
+        opt = optim.Adam(
+            model.parameters(), lr=base_cfg.lr, weight_decay=base_cfg.weight_decay
+        )
         crit = nn.BCEWithLogitsLoss()
 
         for _ in range(int(LOCAL_ONLY_EPOCHS)):
-            train_epoch_standard(model, client_loaders[name]["train"], opt, crit, DEVICE)
+            train_epoch_standard(
+                model, client_loaders[name]["train"], opt, crit, DEVICE
+            )
 
-        local_only_metrics[name] = _eval_model_on_client(model, name, client_loaders, base_cfg, DEVICE)
+        local_only_metrics[name] = _eval_model_on_client(
+            model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_Local_Only"] = _with_client_metrics(
         _aggregate_client_metrics(local_only_metrics),
         local_only_metrics,
@@ -1109,7 +1204,9 @@ def _run_external_baselines_one_repeat(
 
     fedavg_metrics = {}
     for name in client_names:
-        fedavg_metrics[name] = _eval_model_on_client(fedavg_model, name, client_loaders, base_cfg, DEVICE)
+        fedavg_metrics[name] = _eval_model_on_client(
+            fedavg_model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_FedAvg"] = _with_client_metrics(
         _aggregate_client_metrics(fedavg_metrics),
         fedavg_metrics,
@@ -1121,13 +1218,21 @@ def _run_external_baselines_one_repeat(
     ft_metrics = {}
     for name in client_names:
         model = copy.deepcopy(fedavg_model).to(DEVICE)
-        opt = optim.Adam(model.parameters(), lr=base_cfg.personalization_lr, weight_decay=base_cfg.weight_decay)
+        opt = optim.Adam(
+            model.parameters(),
+            lr=base_cfg.personalization_lr,
+            weight_decay=base_cfg.weight_decay,
+        )
         crit = nn.BCEWithLogitsLoss()
 
         for _ in range(int(FINE_TUNE_EPOCHS)):
-            train_epoch_standard(model, client_loaders[name]["train"], opt, crit, DEVICE)
+            train_epoch_standard(
+                model, client_loaders[name]["train"], opt, crit, DEVICE
+            )
 
-        ft_metrics[name] = _eval_model_on_client(model, name, client_loaders, base_cfg, DEVICE)
+        ft_metrics[name] = _eval_model_on_client(
+            model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_FedAvg_LocalFT"] = _with_client_metrics(
         _aggregate_client_metrics(ft_metrics),
         ft_metrics,
@@ -1139,7 +1244,11 @@ def _run_external_baselines_one_repeat(
     ditto_metrics = {}
     for name in client_names:
         model = copy.deepcopy(fedavg_model).to(DEVICE)
-        opt = optim.Adam(model.parameters(), lr=base_cfg.personalization_lr, weight_decay=base_cfg.weight_decay)
+        opt = optim.Adam(
+            model.parameters(),
+            lr=base_cfg.personalization_lr,
+            weight_decay=base_cfg.weight_decay,
+        )
         crit = nn.BCEWithLogitsLoss()
 
         for _ in range(int(FINE_TUNE_EPOCHS)):
@@ -1152,7 +1261,9 @@ def _run_external_baselines_one_repeat(
                 lam=DITTO_LAMBDA,
                 device=DEVICE,
             )
-        ditto_metrics[name] = _eval_model_on_client(model, name, client_loaders, base_cfg, DEVICE)
+        ditto_metrics[name] = _eval_model_on_client(
+            model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_Ditto"] = _with_client_metrics(
         _aggregate_client_metrics(ditto_metrics),
         ditto_metrics,
@@ -1176,13 +1287,21 @@ def _run_external_baselines_one_repeat(
     perfedavg_metrics = {}
     for name in client_names:
         model = copy.deepcopy(perfedavg_model).to(DEVICE)
-        opt = optim.Adam(model.parameters(), lr=base_cfg.personalization_lr, weight_decay=base_cfg.weight_decay)
+        opt = optim.Adam(
+            model.parameters(),
+            lr=base_cfg.personalization_lr,
+            weight_decay=base_cfg.weight_decay,
+        )
         crit = nn.BCEWithLogitsLoss()
 
         for _ in range(int(PERFEDAVG_PERSONAL_EPOCHS)):
-            train_epoch_standard(model, client_loaders[name]["train"], opt, crit, DEVICE)
+            train_epoch_standard(
+                model, client_loaders[name]["train"], opt, crit, DEVICE
+            )
 
-        perfedavg_metrics[name] = _eval_model_on_client(model, name, client_loaders, base_cfg, DEVICE)
+        perfedavg_metrics[name] = _eval_model_on_client(
+            model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_PerFedAvg_FO"] = _with_client_metrics(
         _aggregate_client_metrics(perfedavg_metrics),
         perfedavg_metrics,
@@ -1216,7 +1335,9 @@ def _run_external_baselines_one_repeat(
             lam=float(PFEDME_LAMBDA),
             personal_epochs=int(PFEDME_PERSONAL_EPOCHS),
         )
-        pfedme_metrics[name] = _eval_model_on_client(model, name, client_loaders, base_cfg, DEVICE)
+        pfedme_metrics[name] = _eval_model_on_client(
+            model, name, client_loaders, base_cfg, DEVICE
+        )
     out_metrics["External_pFedMe"] = _with_client_metrics(
         _aggregate_client_metrics(pfedme_metrics),
         pfedme_metrics,
@@ -1226,10 +1347,17 @@ def _run_external_baselines_one_repeat(
     full_names = list(external_full_method_names or ["External_Full_DAPFL"])
     for method_name in full_names:
         print(f"    -> External: {method_name}")
-        if shared_full_res_by_method is not None and method_name in shared_full_res_by_method:
+        if (
+            shared_full_res_by_method is not None
+            and method_name in shared_full_res_by_method
+        ):
             full_res = shared_full_res_by_method[method_name]
         else:
-            full_res = shared_full_res if shared_full_res is not None else _run_full_dapfl_from_bundle(seed, base_cfg, bundle)
+            full_res = (
+                shared_full_res
+                if shared_full_res is not None
+                else _run_full_dapfl_from_bundle(seed, base_cfg, bundle)
+            )
         out_metrics[method_name] = full_res
 
     out_metrics["_subgroup_analysis"] = _subgroup_analysis(
@@ -1246,11 +1374,15 @@ def _run_external_baselines_one_repeat(
     out_metrics["_stage1_diag"] = {
         "stage1_method": bundle["stage1_diag"].get("stage1_method", "OriginalFedAvg"),
         "q_bar": bundle["stage1_diag"].get("q_bar", {}),
-        "avg_total_real_samples": bundle["stage1_diag"].get("avg_total_real_samples", 0.0),
+        "avg_total_real_samples": bundle["stage1_diag"].get(
+            "avg_total_real_samples", 0.0
+        ),
         "avg_active_clients": bundle["stage1_diag"].get("avg_active_clients", 0.0),
         "aggregation": bundle["stage1_diag"].get("aggregation", "sample_size_weighted"),
         "fed_rounds": bundle["stage1_diag"].get("fed_rounds", None),
-        "local_epochs_per_round": bundle["stage1_diag"].get("local_epochs_per_round", None),
+        "local_epochs_per_round": bundle["stage1_diag"].get(
+            "local_epochs_per_round", None
+        ),
         "history_split": bundle["stage1_diag"].get("history_split", "val"),
         "history_every": bundle["stage1_diag"].get("history_every", None),
     }
@@ -1260,11 +1392,17 @@ def _run_external_baselines_one_repeat(
 # -----------------------------------------------------------------------------
 # Internal main-results table
 # -----------------------------------------------------------------------------
-def _eval_global_only(backbone_model, client_loaders, client_names: List[str], cfg: Ch4Config) -> Dict[str, Any]:
+def _eval_global_only(
+    backbone_model, client_loaders, client_names: List[str], cfg: Ch4Config
+) -> Dict[str, Any]:
     metrics = {}
     for name in client_names:
-        thr = _choose_threshold_from_val(backbone_model, client_loaders[name]["val"], DEVICE, cfg)
-        metrics[name] = _eval_on_test_with_threshold(backbone_model, client_loaders[name]["test"], DEVICE, cfg, thr)
+        thr = _choose_threshold_from_val(
+            backbone_model, client_loaders[name]["val"], DEVICE, cfg
+        )
+        metrics[name] = _eval_on_test_with_threshold(
+            backbone_model, client_loaders[name]["test"], DEVICE, cfg, thr
+        )
     return _with_client_metrics(_aggregate_client_metrics(metrics), metrics)
 
 
@@ -1328,11 +1466,16 @@ def _run_internal_main_table_one_repeat(
     full_names = list(internal_full_method_names or ["Main_Full_DAPFL"])
     for method_name in full_names:
         print(f"    -> Internal: {method_name}")
-        if shared_full_res_by_method is not None and method_name in shared_full_res_by_method:
+        if (
+            shared_full_res_by_method is not None
+            and method_name in shared_full_res_by_method
+        ):
             out[method_name] = shared_full_res_by_method[method_name]
         else:
             out[method_name] = (
-                shared_full_res if shared_full_res is not None else _run_full_dapfl_from_bundle(seed, base_cfg, bundle)
+                shared_full_res
+                if shared_full_res is not None
+                else _run_full_dapfl_from_bundle(seed, base_cfg, bundle)
             )
 
     out["_subgroup_analysis"] = _subgroup_analysis(
@@ -1349,11 +1492,15 @@ def _run_internal_main_table_one_repeat(
     out["_stage1_diag"] = {
         "stage1_method": bundle["stage1_diag"].get("stage1_method", "OriginalFedAvg"),
         "q_bar": bundle["stage1_diag"].get("q_bar", {}),
-        "avg_total_real_samples": bundle["stage1_diag"].get("avg_total_real_samples", 0.0),
+        "avg_total_real_samples": bundle["stage1_diag"].get(
+            "avg_total_real_samples", 0.0
+        ),
         "avg_active_clients": bundle["stage1_diag"].get("avg_active_clients", 0.0),
         "aggregation": bundle["stage1_diag"].get("aggregation", "sample_size_weighted"),
         "fed_rounds": bundle["stage1_diag"].get("fed_rounds", None),
-        "local_epochs_per_round": bundle["stage1_diag"].get("local_epochs_per_round", None),
+        "local_epochs_per_round": bundle["stage1_diag"].get(
+            "local_epochs_per_round", None
+        ),
         "history_split": bundle["stage1_diag"].get("history_split", "val"),
         "history_every": bundle["stage1_diag"].get("history_every", None),
     }
@@ -1363,7 +1510,9 @@ def _run_internal_main_table_one_repeat(
 # -----------------------------------------------------------------------------
 # Summary helpers
 # -----------------------------------------------------------------------------
-def _summarize_runs(raw_runs: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Dict[str, Dict[str, Optional[float]]]]:
+def _summarize_runs(
+    raw_runs: Dict[str, List[Dict[str, Any]]]
+) -> Dict[str, Dict[str, Dict[str, Optional[float]]]]:
     metrics_to_summarize = [
         "global_auc",
         "macro_auc",
@@ -1376,7 +1525,11 @@ def _summarize_runs(raw_runs: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Dict
     for method_name, runs in raw_runs.items():
         summary[method_name] = {}
         for metric in metrics_to_summarize:
-            vals = [r.get(metric, np.nan) for r in runs if np.isfinite(r.get(metric, np.nan))]
+            vals = [
+                r.get(metric, np.nan)
+                for r in runs
+                if np.isfinite(r.get(metric, np.nan))
+            ]
             if vals:
                 summary[method_name][metric] = {
                     "mean": float(np.mean(vals)),
@@ -1553,7 +1706,9 @@ def main() -> None:
         local_epochs_per_round=int(args.local_epochs_per_round),
     )
     apc_signal_modes = _clean_apc_signal_modes(
-        args.apc_signal_modes if args.apc_signal_modes is not None else args.apc_signal_mode
+        args.apc_signal_modes
+        if args.apc_signal_modes is not None
+        else args.apc_signal_mode
     )
     base_cfg.apc_signal_mode = str(apc_signal_modes[0])
     base_cfg.apc_mapping_mode = (
@@ -1598,8 +1753,12 @@ def main() -> None:
         "Main_Global_M1_M3_FixedBudget",
     ] + internal_full_method_names
 
-    external_raw_runs: Dict[str, List[Dict[str, Any]]] = {k: [] for k in external_method_names}
-    internal_raw_runs: Dict[str, List[Dict[str, Any]]] = {k: [] for k in internal_method_names}
+    external_raw_runs: Dict[str, List[Dict[str, Any]]] = {
+        k: [] for k in external_method_names
+    }
+    internal_raw_runs: Dict[str, List[Dict[str, Any]]] = {
+        k: [] for k in internal_method_names
+    }
     external_subgroup_runs: Dict[str, List[Dict[str, Any]]] = {}
     internal_subgroup_runs: Dict[str, List[Dict[str, Any]]] = {}
     external_stage1_logs: List[Dict[str, Any]] = []
@@ -1630,19 +1789,27 @@ def main() -> None:
             record_history=True,
             history_every=int(max(1, args.stage1_history_every)),
         )
-        stage1_history_rows.extend(_stage1_history_rows(
-            repeat=r,
-            seed=seed_r,
-            history=bundle.get("stage1_history", []),
-        ))
+        stage1_history_rows.extend(
+            _stage1_history_rows(
+                repeat=r,
+                seed=seed_r,
+                history=bundle.get("stage1_history", []),
+            )
+        )
 
         shared_full_external: Dict[str, Dict[str, Any]] = {}
         shared_full_internal: Dict[str, Dict[str, Any]] = {}
-        for mode, ext_key, int_key in zip(apc_signal_modes, external_full_method_names, internal_full_method_names):
+        for mode, ext_key, int_key in zip(
+            apc_signal_modes, external_full_method_names, internal_full_method_names
+        ):
             print(f"  [Shared] Full DA-PFL mode={mode} (reused by Table A and Table B)")
             cfg_mode = copy.deepcopy(base_cfg)
             cfg_mode.apc_signal_mode = str(mode)
-            cfg_mode.apc_mapping_mode = "need_reliability_product" if str(mode) == "need_reliability_product" else "log_median"
+            cfg_mode.apc_mapping_mode = (
+                "need_reliability_product"
+                if str(mode) == "need_reliability_product"
+                else "log_median"
+            )
             full_res = _run_full_dapfl_from_bundle(seed_r, cfg_mode, bundle)
             shared_full_external[ext_key] = full_res
             shared_full_internal[int_key] = full_res
@@ -1659,14 +1826,18 @@ def main() -> None:
         _collect_subgroup_runs(external_subgroup_runs, ext_subgroup)
         external_stage1_logs.append(ext_one.pop("_stage1_diag"))
         for method_name in external_method_names:
-            external_client_level_rows.extend(_client_level_rows(
-                table="external",
-                repeat=r,
-                seed=seed_r,
-                method_name=method_name,
-                result=ext_one[method_name],
-            ))
-            external_raw_runs[method_name].append(_compact_metrics(ext_one[method_name]))
+            external_client_level_rows.extend(
+                _client_level_rows(
+                    table="external",
+                    repeat=r,
+                    seed=seed_r,
+                    method_name=method_name,
+                    result=ext_one[method_name],
+                )
+            )
+            external_raw_runs[method_name].append(
+                _compact_metrics(ext_one[method_name])
+            )
             _print_live_line(method_name, ext_one[method_name])
 
         print("  [Table B] Internal main-results table")
@@ -1677,7 +1848,9 @@ def main() -> None:
             shared_full_res_by_method=shared_full_internal,
             internal_full_method_names=internal_full_method_names,
         )
-        for ext_key, int_key in zip(external_full_method_names, internal_full_method_names):
+        for ext_key, int_key in zip(
+            external_full_method_names, internal_full_method_names
+        ):
             if _compact_metrics(ext_one[ext_key]) != _compact_metrics(int_one[int_key]):
                 raise RuntimeError(
                     f"Shared Full DA-PFL result mismatch between Table A and Table B: {ext_key} vs {int_key}."
@@ -1686,14 +1859,18 @@ def main() -> None:
         _collect_subgroup_runs(internal_subgroup_runs, int_subgroup)
         internal_stage1_logs.append(int_one.pop("_stage1_diag"))
         for method_name in internal_method_names:
-            internal_client_level_rows.extend(_client_level_rows(
-                table="internal",
-                repeat=r,
-                seed=seed_r,
-                method_name=method_name,
-                result=int_one[method_name],
-            ))
-            internal_raw_runs[method_name].append(_compact_metrics(int_one[method_name]))
+            internal_client_level_rows.extend(
+                _client_level_rows(
+                    table="internal",
+                    repeat=r,
+                    seed=seed_r,
+                    method_name=method_name,
+                    result=int_one[method_name],
+                )
+            )
+            internal_raw_runs[method_name].append(
+                _compact_metrics(int_one[method_name])
+            )
             _print_live_line(method_name, int_one[method_name])
 
     t_all = float(time.perf_counter() - t_all0)
@@ -1703,7 +1880,9 @@ def main() -> None:
     external_subgroup_summary = _summarize_runs(external_subgroup_runs)
     internal_subgroup_summary = _summarize_runs(internal_subgroup_runs)
     stage1_history_summary = _stage1_history_summary_rows(stage1_history_rows)
-    budget_summary_rows = _budget_summary_rows(external_client_level_rows + internal_client_level_rows)
+    budget_summary_rows = _budget_summary_rows(
+        external_client_level_rows + internal_client_level_rows
+    )
 
     payload = {
         "exp_name": "ch5_all_tables",
@@ -1774,7 +1953,10 @@ def main() -> None:
     }
 
     out_path = OUT_DIR / str(args.output_name)
-    out_path.write_text(json.dumps(_json_sanitize(payload), ensure_ascii=False, indent=2), encoding="utf-8")
+    out_path.write_text(
+        json.dumps(_json_sanitize(payload), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     external_csv = OUT_DIR / "paper_external_summary.csv"
     internal_csv = OUT_DIR / "paper_internal_summary.csv"
     external_subgroup_csv = OUT_DIR / "paper_external_subgroup_summary.csv"
@@ -1794,8 +1976,12 @@ def main() -> None:
             internal_csv,
             _summary_to_paper_rows(internal_summary, internal_method_names),
         )
-        _write_paper_csv(external_subgroup_csv, _subgroup_summary_rows(external_subgroup_summary))
-        _write_paper_csv(internal_subgroup_csv, _subgroup_summary_rows(internal_subgroup_summary))
+        _write_paper_csv(
+            external_subgroup_csv, _subgroup_summary_rows(external_subgroup_summary)
+        )
+        _write_paper_csv(
+            internal_subgroup_csv, _subgroup_summary_rows(internal_subgroup_summary)
+        )
         _write_paper_csv(external_client_csv, external_client_level_rows)
         _write_paper_csv(internal_client_csv, internal_client_level_rows)
         _write_paper_csv(stage1_history_csv, stage1_history_rows)
@@ -1812,7 +1998,9 @@ def main() -> None:
         print(f"[Done] Client-level CSV saved to: {external_client_csv}")
         print(f"[Done] Client-level CSV saved to: {internal_client_csv}")
         print(f"[Done] Stage-I convergence CSV saved to: {stage1_history_csv}")
-        print(f"[Done] Stage-I convergence summary CSV saved to: {stage1_history_summary_csv}")
+        print(
+            f"[Done] Stage-I convergence summary CSV saved to: {stage1_history_summary_csv}"
+        )
         print(f"[Done] Budget summary CSV saved to: {budget_summary_csv}")
     else:
         print("[Done] repeats=0 structure check: paper CSV files were not overwritten.")
@@ -1843,4 +2031,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

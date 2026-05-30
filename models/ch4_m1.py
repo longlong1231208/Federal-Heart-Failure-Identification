@@ -30,7 +30,7 @@ class M1Config:
     #   "set" is strongly recommended for idempotence:
     #       b <- b_base + delta_eff
     # --------------------------------------------------------
-    apply_mode: str = "set"      # "add" or "set"
+    apply_mode: str = "set"  # "add" or "set"
     guard_reapply: bool = True
     applied_flag_name: str = "_m1_bias_applied"
     bias_base_name: str = "_m1_bias_base"
@@ -43,7 +43,17 @@ class M1Config:
     # --------------------------------------------------------
     enable_lambda_selection: bool = True
     lambda_grid: Tuple[float, ...] = (
-        0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
+        0.0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
     )
     lambda_reg_eta: float = 0.05
     lambda_min_val_size: int = 8
@@ -79,14 +89,18 @@ def get_head_linear(model: nn.Module) -> nn.Linear:
                         "but this M1 assumes BCE single-logit head (out_features==1)."
                     )
                 return module
-    raise ValueError("Could not find a valid Linear head (fc/head/classifier) with out_features==1.")
+    raise ValueError(
+        "Could not find a valid Linear head (fc/head/classifier) with out_features==1."
+    )
 
 
 def _as_scalar_bias(head: nn.Linear) -> torch.Tensor:
     if head.bias is None:
         raise ValueError("Head has no bias; M1 prior-bias calibration requires bias.")
     if int(head.bias.numel()) != 1 or int(head.out_features) != 1:
-        raise ValueError("This M1 implementation assumes a binary BCE head with a single bias.")
+        raise ValueError(
+            "This M1 implementation assumes a binary BCE head with a single bias."
+        )
     return head.bias.view(1)  # shape (1,)
 
 
@@ -154,6 +168,7 @@ def reset_m1_state(model: nn.Module, cfg: Optional[M1Config] = None) -> None:
     if hasattr(model, cfg.bias_base_name):
         delattr(model, cfg.bias_base_name)
 
+
 # ============================================================
 # Raw logits collection
 # ============================================================
@@ -205,7 +220,6 @@ def _select_lambda_from_logits(
     delta_raw: float,
     cfg: M1Config,
 ) -> Dict[str, float]:
-    
     out = {
         "lambda": 1.0,
         "delta_raw": float(delta_raw),
@@ -413,5 +427,3 @@ def apply_prior_bias_calibration(
     if pos_g is not None:
         out["pos_g"] = float(int(pos_g))
     return out
-
-
