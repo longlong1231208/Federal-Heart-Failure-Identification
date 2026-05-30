@@ -1,6 +1,6 @@
-# DA-PFL Experiment Code
+# Federal Heart Failure Identification
 
-This repository contains the implementation code for the DA-PFL paper experiments.
+Master's thesis source code for DA-PFL based heart failure identification experiments.
 
 ## Project Structure
 
@@ -8,7 +8,7 @@ This repository contains the implementation code for the DA-PFL paper experiment
 - `datasets/`: dataset loading and federated data utilities.
 - `scripts/`: scripts for running experiments and generating paper figures.
 - `utils/`: metrics, random seed helpers, and statistical analysis utilities.
-- `绘图.py`: plotting script used for paper figures.
+- Root plotting script: paper figure plotting code.
 
 ## Environment
 
