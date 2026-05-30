@@ -1,6 +1,6 @@
 # Expected Results
 
-This file summarizes the main results reported in Chapter 4 of the thesis. The values are copied from the final LaTeX/PDF version of the thesis, not from intermediate local output folders.
+This file summarizes the main results reported in Chapter 4 of the thesis.
 
 Results are reported as mean +/- standard deviation over five random seeds. Higher values are better for Global AUC, Macro AUC, and Macro F1. Lower values are better for Macro ECE and Gini(AUC).
 
