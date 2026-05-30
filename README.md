@@ -15,7 +15,7 @@ Install dependencies with:
 pip install -r requirements.txt
 ```
 
-Python 3.9 or newer is recommended. If CUDA is available, PyTorch will use GPU automatically in the main experiment scripts.
+Python 3.10 or newer is recommended. If CUDA is available, PyTorch will use GPU automatically in the main experiment code.
 
 ## Data
 

@@ -32,6 +32,8 @@ ch4_compare/
 scripts/
 utils/
 绘图.py
+models/paper_table_figure.py
+models/stage1_convergence.py
 
 # OS files
 .DS_Store
